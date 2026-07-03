@@ -1,7 +1,7 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler } from "../lib/helpers.js";
-import { authenticate, tenantContext, accessibleProjectIds } from "../middleware/auth.js";
+import { authenticate, tenantContext, accessibleProjectIds, isCompanyManager } from "../middleware/auth.js";
 
 const router = Router();
 router.use(authenticate, tenantContext);
@@ -14,6 +14,15 @@ router.get(
     const projScope = { projectId: { in: ids } };
     const companyId = req.company.id;
 
+    // Périmètre du fil « Activité récente » :
+    //  - admin d'entreprise : actions des membres de l'entreprise active
+    //  - membre standard : uniquement ses propres actions (pas celles des autres)
+    let activityUserFilter = req.user.id;
+    if (isCompanyManager(req)) {
+      const members = await prisma.companyMembership.findMany({ where: { companyId }, select: { userId: true } });
+      activityUserFilter = { in: members.map((m) => m.userId) };
+    }
+
     const [
       projects, reservesOpen, reservesTotal, materials, recentPhotos,
       finances, projectsByStatus, recentActivity, lateTasks,
@@ -25,7 +34,7 @@ router.get(
       prisma.photo.findMany({ where: { ...projScope }, orderBy: { takenAt: "desc" }, take: 6, include: { project: { select: { name: true } } } }),
       prisma.financeRecord.findMany({ where: { status: { in: ["VALIDEE", "PAYEE"] }, ...projScope } }),
       prisma.project.groupBy({ by: ["status"], _count: true, where: { id: { in: ids } } }),
-      prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 8, include: { user: { select: { firstName: true, lastName: true } } } }),
+      prisma.activityLog.findMany({ where: { userId: activityUserFilter }, orderBy: { createdAt: "desc" }, take: 8, include: { user: { select: { firstName: true, lastName: true } } } }),
       prisma.task.findMany({ where: { status: "EN_RETARD", ...projScope }, take: 5, include: { project: { select: { name: true } } } }),
     ]);
 

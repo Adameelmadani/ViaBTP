@@ -4,7 +4,10 @@ Application web complète de pilotage de chantiers (BTP): suivi d'avancement, r�
 documentaire, planning, réunions, finance et **gestion complète de l'approvisionnement
 en matériaux**.
 
-Interface **glassmorphism** thème **blanc, vert & orange**, multi-rôles, multi-projets.
+**Multi-entreprise** (multi-tenant) et **multi-projets** : un même compte peut appartenir à
+plusieurs entreprises, chacune avec ses propres projets, membres et droits.
+
+Interface **glassmorphism** thème **blanc, vert & orange**, multi-rôles.
 
 ---
 
@@ -15,7 +18,30 @@ Interface **glassmorphism** thème **blanc, vert & orange**, multi-rôles, multi
 | Frontend | React 18 · Vite · TailwindCSS · Recharts · React Router · Axios |
 | Backend | Node.js · Express · JWT · Multer · Zod |
 | ORM / BDD | Prisma · **PostgreSQL 16** (Docker) |
-| Auth | JWT + bcrypt, contrôle d'accès par rôle |
+| Auth | JWT + bcrypt, contrôle d'accès **par niveaux** (multi-tenant) |
+
+---
+
+## Modèle d'accès (multi-tenant)
+
+Les droits ne sont plus binaires : chaque module dispose d'un **niveau** d'accès.
+
+```
+NONE < VIEW < CONTRIBUTE < MANAGE
+```
+
+- **Entreprise** : un utilisateur devient membre d'une entreprise via une `CompanyMembership`
+  qui porte son **type de profil** (préréglage métier) et ses **niveaux « entreprise »**
+  (projets, matériaux, fournisseurs, stock, commandes).
+- **Projet** : l'accès à chaque projet est porté par une ligne `ProjectAccess` avec ses
+  **niveaux par module** (aperçu, lots, documents, photos, réunions, réserves, planning, finance, appro).
+- **Type de profil** : sert de **préréglage** — il pré-remplit les niveaux par défaut, que
+  l'admin d'entreprise peut ensuite ajuster librement (page **Équipe & accès**).
+- **Admin d'entreprise** : accès complet à son entreprise + gestion des membres et des droits.
+- **Super-admin plateforme** : gère les entreprises, contourne tous les niveaux.
+
+Les 9 types de profil : Administrateur, Maître d'ouvrage, Architecte, Bureau d'études,
+Entreprise, Contrôle technique, Conducteur de travaux, Chef de chantier, Visiteur.
 
 ---
 
@@ -38,7 +64,7 @@ cd backend
 npm install
 cp .env.example .env          # déjà fourni
 npx prisma db push            # crée le schéma dans PostgreSQL
-npm run seed                  # données de démonstration
+npm run seed                  # crée le super-admin + l'entreprise (voir SEED_* dans .env)
 npm run dev                   # API sur http://localhost:4000
 ```
 
@@ -58,21 +84,18 @@ npm run frontend  # terminal 2
 
 ---
 
-## Comptes de démonstration
+## Comptes initiaux
 
-Mot de passe pour tous : **`password123`**
+`npm run seed` crée exactement deux comptes, à partir des variables `SEED_*` de `backend/.env` :
 
-| Rôle | Email |
-|---|---|
-| Administrateur | `admin@viabtp.ma` |
-| Maître d'ouvrage | `mo@viabtp.ma` |
-| Architecte | `archi@viabtp.ma` |
-| Bureau d'études | `bet@viabtp.ma` |
-| Entreprise | `entreprise@viabtp.ma` |
-| Contrôle technique | `controle@viabtp.ma` |
-| Conducteur de travaux | `conducteur@viabtp.ma` |
-| Chef de chantier | `chef@viabtp.ma` |
-| Visiteur | `visiteur@viabtp.ma` |
+| Rôle | Nom | Email (`.env`) |
+|---|---|---|
+| Super-administrateur plateforme | Adam El Madani | `SEED_SUPERADMIN_EMAIL` |
+| Administrateur de l'entreprise `company` | Mounir El Madani | `SEED_ADMIN_EMAIL` |
+
+Le mot de passe des deux comptes est défini par **`SEED_PASSWORD`** dans `backend/.env`
+(obligatoire — le seed échoue s'il est absent). Modifiez les valeurs `SEED_*` avant de
+lancer le seed pour personnaliser noms, emails, mot de passe et nom d'entreprise.
 
 ---
 
@@ -80,7 +103,7 @@ Mot de passe pour tous : **`password123`**
 
 | # | Module | Statut |
 |---|---|---|
-| 4.1 | Gestion des utilisateurs (9 rôles, permissions, journalisation) | |
+| 4.1 | Gestion des accès : multi-entreprise, 9 profils, droits par niveaux, journalisation | |
 | 4.2 | Gestion des projets (GPS, budget, intervenants, marché) | |
 | 4.3 | Tableau de bord dynamique (KPIs, graphiques, alertes) | |
 | 4.4 | Suivi d'avancement par lot (saisie, historique, validation) | |
@@ -91,7 +114,7 @@ Mot de passe pour tous : **`password123`**
 | 4.9 | Gestion financière (situations, décomptes, suivi budgétaire) | |
 | 4.10 | Module photo & géolocalisation (zones, GPS, horodatage) | |
 | 4.11 | **Approvisionnement** : matériaux, demandes, fournisseurs, bons de commande, stock, mouvements, valorisation, alertes seuil | |
-| 5.1 | Sécurité : JWT, bcrypt, RBAC, journal d'activité | |
+| 5.1 | Sécurité : JWT, bcrypt, contrôle d'accès par niveaux, journal d'activité | |
 
 ---
 
@@ -103,19 +126,19 @@ ViaBTP/
 ├── package.json              # scripts racine (setup, db:up, ...)
 ├── backend/
 │   ├── prisma/
-│   │   ├── schema.prisma     # modèle de données complet
-│   │   └── seed.js           # données de démo (chantiers marocains)
+│   │   ├── schema.prisma     # modèle de données complet (multi-tenant)
+│   │   └── seed.js           # données de démo (2 entreprises, chantiers marocains)
 │   └── src/
 │       ├── server.js / app.js
-│       ├── lib/              # prisma, auth (JWT), helpers
-│       ├── middleware/       # auth, rôles, upload, erreurs
-│       └── routes/           # 17 routeurs REST
+│       ├── lib/              # prisma, auth (JWT), access (niveaux), helpers
+│       ├── middleware/       # auth + contexte multi-tenant, upload, erreurs
+│       └── routes/           # 19 routeurs REST
 └── frontend/
     └── src/
-        ├── components/       # UI kit glassmorphism, Layout
-        ├── context/          # Auth + Toast
-        ├── lib/              # constantes, hooks
-        └── pages/            # 19 pages
+        ├── components/       # UI kit glassmorphism, Layout, AuthShell
+        ├── context/          # Auth · Company · Toast · Confirm
+        ├── lib/              # constantes, permissions (niveaux)
+        └── pages/            # 23 pages (dont onboarding, profil, équipe & accès, admin)
 ```
 
 ---
@@ -124,8 +147,11 @@ ViaBTP/
 
 | Méthode | Endpoint | Description |
 |---|---|---|
-| POST | `/api/auth/login` · `/register` · `/me` | Authentification |
-| GET/POST/PUT/DELETE | `/api/projects` | Projets + `/:id/members` |
+| POST | `/api/auth/login` · `/register` | Authentification |
+| GET/PUT | `/api/auth/me` · `/me/password` | Profil courant : infos & mot de passe |
+| GET/POST/PUT/DELETE | `/api/companies` | Entreprises (super-admin) & onboarding |
+| GET/POST/PUT/DELETE | `/api/members` · `/project-access` | Membres d'entreprise & droits par projet |
+| GET/POST/PUT/DELETE | `/api/projects` | Projets |
 | GET/POST/PUT | `/api/lots` · `/api/lots/:id/progress` | Lots & avancement |
 | GET/POST/PUT/DELETE | `/api/reserves` | Réserves / NC |
 | GET/POST | `/api/documents` · `/api/photos` | GED & photos (upload) |
@@ -135,9 +161,12 @@ ViaBTP/
 | CRUD | `/api/materials` · `/suppliers` · `/supply` · `/orders` | Approvisionnement |
 | GET/POST | `/api/stock/movements` · `/valuation` | Stock |
 | GET | `/api/dashboard` | KPIs agrégés |
-| GET | `/api/notifications` · `/api/activity` | Notifs & audit |
+| GET/PATCH | `/api/notifications` | Notifications personnelles |
+| GET | `/api/activity` | Journal d'audit (admin, paginé, périmètre entreprise) |
 
-> Toutes les routes (hors `/auth`) exigent un header `Authorization: Bearer <token>`.
+> Toutes les routes (hors `/auth/login` et `/auth/register`) exigent un header
+> `Authorization: Bearer <token>`. Les routes liées à une entreprise exigent aussi
+> l'en-tête `X-Company-Id` (entreprise active).
 
 ---
 

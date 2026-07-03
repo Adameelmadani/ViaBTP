@@ -5,19 +5,12 @@ import { useAuth } from "../context/AuthContext.jsx";
 import Logo from "../components/Logo.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 
-const DEMO = [
-  { label: "Admin entreprise (STGM)", email: "admin@stgm.ma" },
-  { label: "Conducteur de travaux", email: "conducteur@stgm.ma" },
-  { label: "Architecte (multi-entreprises)", email: "archi@viabtp.ma" },
-  { label: "Super-admin plateforme", email: "admin@viabtp.ma" },
-];
-
 export default function Login() {
   const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@stgm.ma");
-  const [password, setPassword] = useState("password123");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async (e) => {
@@ -115,23 +108,6 @@ export default function Login() {
                 {loading ? <Loader2 className="animate-spin" size={18} /> : <>Se connecter <ArrowRight size={18} /></>}
               </button>
             </form>
-
-            <div className="mt-6">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-brand-700/50 mb-2">Comptes de démonstration</p>
-              <div className="grid gap-1.5">
-                {DEMO.map((d) => (
-                  <button
-                    key={d.email}
-                    onClick={() => { setEmail(d.email); setPassword("password123"); }}
-                    className="flex items-center justify-between text-left px-3 py-2 rounded-xl bg-brand-50/70 hover:bg-brand-100 transition text-sm"
-                  >
-                    <span className="font-medium text-brand-800">{d.label}</span>
-                    <span className="text-xs text-brand-600">{d.email}</span>
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-brand-700/50 mt-2">Mot de passe : <code className="font-mono">password123</code></p>
-            </div>
 
             <p className="text-center text-sm text-brand-700/70 mt-6">
               Pas encore de compte ?{" "}
