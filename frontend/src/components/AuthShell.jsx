@@ -1,0 +1,71 @@
+import { Link } from "react-router-dom";
+import { Building2, ShieldCheck, BarChart3 } from "lucide-react";
+import Logo from "./Logo.jsx";
+
+// Coquille visuelle partagée par les écrans d'authentification (hero gauche + carte droite).
+export default function AuthShell({ title, subtitle, children }) {
+  return (
+    <div className="min-h-screen grid lg:grid-cols-2">
+      {/* Hero gauche */}
+      <div className="hidden lg:flex flex-col justify-between p-12 relative overflow-hidden text-brand-900">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-50 via-white to-accent-50" />
+        <div className="absolute inset-0 grid-overlay grid-overlay-fade opacity-80" />
+        <div className="absolute -top-24 -right-16 w-96 h-96 rounded-full bg-accent-300/30 blur-3xl animate-glow-pulse" />
+        <div className="absolute bottom-0 -left-10 w-80 h-80 rounded-full bg-brand-300/30 blur-3xl" />
+        <div className="scene-3d absolute top-1/2 right-10 -translate-y-1/2 w-64 h-64 animate-float-lg grid place-items-center">
+          <div className="gem w-[190px] h-[190px]">
+            <div className="gem-pyr top">
+              <span className="gem-facet" /><span className="gem-facet" /><span className="gem-facet" /><span className="gem-facet" />
+            </div>
+            <div className="gem-pyr bottom">
+              <span className="gem-facet" /><span className="gem-facet" /><span className="gem-facet" /><span className="gem-facet" />
+            </div>
+          </div>
+        </div>
+
+        <Link to="/" className="relative flex items-center gap-3 w-fit" title="Accueil ViaBTP">
+          <Logo size={48} rounded="rounded-2xl" />
+          <span className="font-display text-2xl font-extrabold">Via<span className="text-gradient-accent">BTP</span></span>
+        </Link>
+        <div className="relative">
+          <p className="mono-tag mb-3">[ la meilleure plateform du BTP ]</p>
+          <h1 className="text-4xl font-extrabold leading-tight text-brand-900">
+            L'espace de votre <br /> <span className="text-gradient-accent">entreprise de chantier.</span>
+          </h1>
+          <p className="text-sm mt-4 text-brand-700/80 max-w-md">
+            Un espace privé pour piloter tous vos chantiers, vos équipes et vos approvisionnements.
+          </p>
+          <div className="mt-8 space-y-3 max-w-sm">
+            {[
+              { icon: Building2, t: "Un espace privé et isolé pour l'entreprise" },
+              { icon: ShieldCheck, t: "Accès précis, par projet et par module" },
+              { icon: BarChart3, t: "Avancement, réserves & finance en direct" },
+            ].map((f, i) => (
+              <div key={i} className="flex items-center gap-3 bg-white/70 backdrop-blur rounded-2xl px-4 py-3 border border-brand-100 shadow-glass-sm">
+                <f.icon size={20} className="text-accent-500" />
+                <span className="text-sm font-medium text-brand-800">{f.t}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+        <p className="relative text-xs text-brand-700/50 font-mono">© 2026 ViaBTP</p>
+      </div>
+
+      {/* Formulaire droite */}
+      <div className="flex items-center justify-center p-6 sm:p-12">
+        <div className="w-full max-w-md">
+          <Link to="/" className="lg:hidden flex items-center gap-3 mb-8 justify-center" title="Accueil ViaBTP">
+            <Logo size={48} rounded="rounded-2xl" />
+            <span className="font-display text-2xl font-extrabold text-brand-900">Via<span className="text-gradient-accent">BTP</span></span>
+          </Link>
+
+          <div className="glass-strong p-8">
+            <h2 className="text-2xl font-bold text-brand-900">{title}</h2>
+            {subtitle && <p className="font-display text-sm text-brand-700/60 mt-1 mb-6">{subtitle}</p>}
+            {children}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

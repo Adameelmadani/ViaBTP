@@ -1,22 +1,23 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity, notify } from "../lib/helpers.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireCompanyLevel } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
 const include = {
   material: { select: { id: true, designation: true, unit: true, reference: true } },
   project: { select: { id: true, name: true } },
 };
 
-// Mouvements de stock (entrées / sorties) - 4.11.5
+// Mouvements de stock (entrées / sorties)
 router.get(
   "/movements",
+  requireCompanyLevel("stock", "VIEW"),
   asyncHandler(async (req, res) => {
     const { materialId, projectId, type } = req.query;
-    const where = {};
+    const where = { companyId: req.company.id };
     if (materialId) where.materialId = materialId;
     if (projectId) where.projectId = projectId;
     if (type) where.type = type;
@@ -29,10 +30,11 @@ router.get(
 
 router.post(
   "/movements",
+  requireCompanyLevel("stock", "CONTRIBUTE"),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const qty = Number(b.quantity);
-    const material = await prisma.material.findUnique({ where: { id: b.materialId } });
+    const material = await prisma.material.findFirst({ where: { id: b.materialId, companyId: req.company.id } });
     if (!material) return res.status(404).json({ message: "Matériau introuvable" });
 
     if (b.type === "SORTIE" && material.stockAvailable < qty) {
@@ -41,6 +43,7 @@ router.post(
 
     const movement = await prisma.stockMovement.create({
       data: {
+        companyId: req.company.id,
         materialId: b.materialId,
         projectId: b.projectId || null,
         type: b.type,
@@ -57,7 +60,6 @@ router.post(
       data: { stockAvailable: b.type === "ENTREE" ? { increment: qty } : { decrement: qty } },
     });
 
-    // Alerte seuil (4.11.7)
     if (updated.stockAvailable <= updated.stockMin) {
       await notify({
         userId: req.user.id, type: "STOCK",
@@ -70,11 +72,12 @@ router.post(
   })
 );
 
-// Valorisation du stock + KPIs (4.11.7/4.11.9)
+// Valorisation du stock + KPIs
 router.get(
   "/valuation",
+  requireCompanyLevel("stock", "VIEW"),
   asyncHandler(async (req, res) => {
-    const materials = await prisma.material.findMany();
+    const materials = await prisma.material.findMany({ where: { companyId: req.company.id } });
     const totalValue = materials.reduce((s, m) => s + m.stockAvailable * m.unitPrice, 0);
     const lowStock = materials.filter((m) => m.stockAvailable <= m.stockMin);
     const byCategory = {};

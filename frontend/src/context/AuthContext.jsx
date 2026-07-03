@@ -5,6 +5,7 @@ const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
+  const [memberships, setMemberships] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -15,7 +16,10 @@ export function AuthProvider({ children }) {
     }
     api
       .get("/auth/me")
-      .then((res) => setUser(res.data.user))
+      .then((res) => {
+        setUser(res.data.user);
+        setMemberships(res.data.memberships || []);
+      })
       .catch(() => localStorage.removeItem("viabtp_token"))
       .finally(() => setLoading(false));
   }, []);
@@ -24,25 +28,36 @@ export function AuthProvider({ children }) {
     const res = await api.post("/auth/login", { email, password });
     localStorage.setItem("viabtp_token", res.data.token);
     setUser(res.data.user);
-    return res.data.user;
+    setMemberships(res.data.memberships || []);
+    return res.data;
   };
 
   const register = async (payload) => {
     const res = await api.post("/auth/register", payload);
     localStorage.setItem("viabtp_token", res.data.token);
     setUser(res.data.user);
-    return res.data.user;
+    setMemberships(res.data.memberships || []);
+    return res.data;
   };
 
   const logout = () => {
     localStorage.removeItem("viabtp_token");
+    localStorage.removeItem("viabtp_company");
     setUser(null);
+    setMemberships([]);
   };
 
-  const hasRole = (...roles) => user && (user.role === "ADMIN" || roles.includes(user.role));
+  const refreshMemberships = async () => {
+    const res = await api.get("/auth/me");
+    setUser(res.data.user);
+    setMemberships(res.data.memberships || []);
+    return res.data.memberships || [];
+  };
+
+  const isSuperAdmin = user?.platformRole === "SUPERADMIN";
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, register, logout, hasRole, setUser }}>
+    <AuthContext.Provider value={{ user, memberships, loading, isSuperAdmin, login, register, logout, setUser, refreshMemberships }}>
       {children}
     </AuthContext.Provider>
   );

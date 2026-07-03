@@ -7,6 +7,7 @@ import { useProjects } from "../lib/hooks.js";
 import { TASK_STATUS, enumToOptions } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { useConfirm } from "../context/ConfirmContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 // Barres de Gantt : palette verte/orange (neutre pour « à faire »)
 const STATUS_BAR = { A_FAIRE: "#9fb3a8", EN_COURS: "#ff8a4c", TERMINE: "#16b563", EN_RETARD: "#f15206" };
@@ -15,7 +16,11 @@ const DAY = 86400000;
 export default function Planning() {
   const { toast } = useToast();
   const confirm = useConfirm();
+  const { projectCan } = useAccess();
   const { projects, projectId, setProjectId } = useProjects();
+  const project = projects.find((p) => p.id === projectId);
+  const canCreate = projectCan(project, "planning", "CONTRIBUTE");
+  const canDeleteTask = projectCan(project, "planning", "MANAGE");
   const [tasks, setTasks] = useState(null);
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
@@ -48,7 +53,7 @@ export default function Planning() {
         title="Planning chantier" subtitle="Diagramme de Gantt & jalons" icon={CalendarRange}
         actions={<div className="flex gap-2 flex-wrap">
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
-          <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouvelle tâche</button>
+          {canCreate && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouvelle tâche</button>}
         </div>}
       />
 
@@ -87,9 +92,11 @@ export default function Planning() {
                         <div className="absolute inset-y-0 left-0 bg-white/30" style={{ width: `${t.progress}%` }} />
                         <span className="relative text-[10px] font-bold text-white whitespace-nowrap">{Math.round(t.progress)}%</span>
                       </div>
-                      <button onClick={() => remove(t)} className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition">
-                        <Trash2 size={14} />
-                      </button>
+                      {canDeleteTask && (
+                        <button onClick={() => remove(t)} className="absolute right-2 top-1/2 -translate-y-1/2 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition">
+                          <Trash2 size={14} />
+                        </button>
+                      )}
                     </div>
                   </div>
                 );

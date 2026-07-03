@@ -6,10 +6,15 @@ import ProjectPicker from "../components/ProjectPicker.jsx";
 import { useProjects } from "../lib/hooks.js";
 import { TASK_STATUS, ROLE_LABELS } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Meetings() {
   const { toast } = useToast();
+  const { projectCan } = useAccess();
   const { projects, projectId, setProjectId } = useProjects();
+  const project = projects.find((p) => p.id === projectId);
+  const canManage = projectCan(project, "meetings", "MANAGE");
+  const canContribute = projectCan(project, "meetings", "CONTRIBUTE");
   const [meetings, setMeetings] = useState(null);
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
@@ -33,7 +38,7 @@ export default function Meetings() {
         title="Réunions de chantier" subtitle="Comptes rendus, présences & actions à suivre" icon={Users2}
         actions={<div className="flex gap-2 flex-wrap">
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
-          <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Planifier</button>
+          {canManage && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Planifier</button>}
         </div>}
       />
 
@@ -64,12 +69,12 @@ export default function Meetings() {
       )}
 
       <MeetingModal open={open} onClose={() => setOpen(false)} projectId={projectId} users={users} onSaved={() => { setOpen(false); load(); toast("Réunion planifiée"); }} />
-      <MeetingDetail meeting={detail} users={users} onClose={() => setDetail(null)} onRefresh={refreshDetail} />
+      <MeetingDetail meeting={detail} users={users} canManage={canManage} canContribute={canContribute} onClose={() => setDetail(null)} onRefresh={refreshDetail} />
     </div>
   );
 }
 
-function MeetingDetail({ meeting, users, onClose, onRefresh }) {
+function MeetingDetail({ meeting, users, canManage, canContribute, onClose, onRefresh }) {
   const { toast } = useToast();
   const [minutes, setMinutes] = useState("");
   const [editingMin, setEditingMin] = useState(false);
@@ -116,7 +121,7 @@ function MeetingDetail({ meeting, users, onClose, onRefresh }) {
         <div>
           <div className="flex items-center justify-between">
             <p className="label">Compte rendu</p>
-            {!editingMin && <button className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1" onClick={() => setEditingMin(true)}><Pencil size={12} /> {meeting.minutes ? "Modifier" : "Ajouter"}</button>}
+            {!editingMin && canManage && <button className="text-xs font-semibold text-brand-600 hover:underline flex items-center gap-1" onClick={() => setEditingMin(true)}><Pencil size={12} /> {meeting.minutes ? "Modifier" : "Ajouter"}</button>}
           </div>
           {editingMin ? (
             <div className="space-y-2">
@@ -136,7 +141,7 @@ function MeetingDetail({ meeting, users, onClose, onRefresh }) {
           <p className="label">Liste de présence <span className="text-brand-700/50 font-normal">· {presentCount}/{meeting.attendees.length} présents</span></p>
           <div className="grid sm:grid-cols-2 gap-2">
             {meeting.attendees.map((a) => (
-              <button key={a.id} onClick={() => toggleAttendance(a)} className="flex items-center gap-2 p-2 rounded-xl bg-white/50 border border-white/60 hover:bg-white/80 transition text-left">
+              <button key={a.id} onClick={canContribute ? () => toggleAttendance(a) : undefined} disabled={!canContribute} className={`flex items-center gap-2 p-2 rounded-xl bg-white/50 border border-white/60 text-left ${canContribute ? "hover:bg-white/80 transition" : "cursor-default"}`}>
                 {a.present ? <CheckSquare size={18} className="text-brand-600" /> : <Square size={18} className="text-brand-300" />}
                 <Avatar name={`${a.user.firstName} ${a.user.lastName}`} size={28} />
                 <div className="min-w-0"><p className="text-sm font-medium text-brand-900 truncate">{a.user.firstName} {a.user.lastName}</p><p className="text-[10px] text-brand-700/60">{ROLE_LABELS[a.user.role]}</p></div>
@@ -156,7 +161,7 @@ function MeetingDetail({ meeting, users, onClose, onRefresh }) {
                   <p className="text-sm font-medium text-brand-900">{ac.description}</p>
                   {ac.assignedTo && <p className="text-xs text-brand-700/60">Resp. : {ac.assignedTo.firstName} {ac.assignedTo.lastName}{ac.dueDate ? ` · échéance ${new Date(ac.dueDate).toLocaleDateString("fr-FR")}` : ""}</p>}
                 </div>
-                <select value={ac.status} onChange={(e) => setActionStatus(ac, e.target.value)} className={`badge border-0 cursor-pointer shrink-0 ${TASK_STATUS[ac.status].color}`}>
+                <select value={ac.status} onChange={(e) => setActionStatus(ac, e.target.value)} disabled={!canContribute} className={`badge border-0 shrink-0 ${canContribute ? "cursor-pointer" : ""} ${TASK_STATUS[ac.status].color}`}>
                   {Object.entries(TASK_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                 </select>
               </div>
@@ -164,6 +169,7 @@ function MeetingDetail({ meeting, users, onClose, onRefresh }) {
           </div>
 
           {/* Ajout d'une action */}
+          {canContribute && (
           <form onSubmit={addAction} className="mt-3 grid sm:grid-cols-[1fr_auto_auto_auto] gap-2 items-end bg-white/40 rounded-xl p-3 border border-white/60">
             <Field label="Nouvelle action" className="min-w-0">
               <Input value={newAction.description} onChange={(e) => setNewAction({ ...newAction, description: e.target.value })} placeholder="Décrire l'action..." />
@@ -179,6 +185,7 @@ function MeetingDetail({ meeting, users, onClose, onRefresh }) {
             </Field>
             <button type="submit" className="btn-soft"><Plus size={16} /> Ajouter</button>
           </form>
+          )}
         </div>
       </div>
     </Modal>

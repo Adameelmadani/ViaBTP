@@ -4,14 +4,13 @@ import { ArrowRight, Loader2, Building2, ShieldCheck, BarChart3 } from "lucide-r
 import { useAuth } from "../context/AuthContext.jsx";
 import Logo from "../components/Logo.jsx";
 import { useToast } from "../context/ToastContext.jsx";
-import { ROLE_LABELS } from "../lib/constants.js";
 
 export default function Register() {
   const { register } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [form, setForm] = useState({
-    firstName: "", lastName: "", email: "", password: "", role: "VISITEUR", company: "", phone: "",
+    firstName: "", lastName: "", email: "", password: "", phone: "",
   });
   const [loading, setLoading] = useState(false);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
@@ -22,7 +21,7 @@ export default function Register() {
     try {
       await register(form);
       toast("Compte créé avec succès");
-      navigate("/dashboard");
+      navigate("/onboarding");
     } catch (err) {
       toast(err.response?.data?.message || "Échec de l'inscription", "error");
     } finally {
@@ -56,19 +55,19 @@ export default function Register() {
           <span className="font-display text-2xl font-extrabold">Via<span className="text-gradient-accent">BTP</span></span>
         </Link>
         <div className="relative">
-          <p className="mono-tag mb-3">[ plateforme de pilotage de chantier ]</p>
+          <p className="mono-tag mb-3">[ la meilleure plateform du BTP ]</p>
           <h1 className="text-4xl font-extrabold leading-tight text-brand-900">
-            Pilotez vos chantiers <br /> <span className="text-gradient-accent">en temps réel.</span>
+            Rejoignez votre <br /> <span className="text-gradient-accent">entreprise sur ViaBTP.</span>
           </h1>
           <p className="text-sm mt-4 text-brand-700/80 max-w-md">
-            La plateforme centralisée de suivi de chantier : avancement, réserves, documents,
-            planning, approvisionnement et finance au même endroit.
+            Créez votre compte, puis faites-vous ajouter par l'administrateur de votre entreprise
+            grâce à votre identifiant. Vos accès sont définis projet par projet.
           </p>
           <div className="mt-8 space-y-3 max-w-sm">
             {[
-              { icon: BarChart3, t: "Avancement physique & financier en direct" },
-              { icon: ShieldCheck, t: "Réserves, non-conformités & qualité" },
-              { icon: Building2, t: "Gestion multi-projets & intervenants" },
+              { icon: Building2, t: "Un espace privé et isolé pour l'entreprise" },
+              { icon: ShieldCheck, t: "Accès précis, par projet et par module" },
+              { icon: BarChart3, t: "Avancement, réserves & finance en direct" },
             ].map((f, i) => (
               <div key={i} className="flex items-center gap-3 bg-white/70 backdrop-blur rounded-2xl px-4 py-3 border border-brand-100 shadow-glass-sm">
                 <f.icon size={20} className="text-accent-500" />
@@ -90,7 +89,7 @@ export default function Register() {
 
           <div className="glass-strong p-8">
             <h2 className="text-2xl font-bold text-brand-900">Créer un compte</h2>
-            <p className="font-display text-sm text-brand-700/60 mt-1 mb-6">Rejoignez la plateforme de suivi de chantier.</p>
+            <p className="font-display text-sm text-brand-700/60 mt-1 mb-6">Un compte personnel, gratuit, rattaché ensuite à votre entreprise.</p>
 
             <form onSubmit={submit} className="space-y-4">
               <div className="grid sm:grid-cols-2 gap-4">
@@ -113,23 +112,13 @@ export default function Register() {
                   <input className="input" type="password" value={form.password} onChange={set("password")} required minLength={6} placeholder="••••••••" />
                 </div>
                 <div>
-                  <label className="label">Rôle</label>
-                  <select className="select" value={form.role} onChange={set("role")}>
-                    {Object.entries(ROLE_LABELS).filter(([k]) => k !== "ADMIN").map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Société</label>
-                  <input className="input" value={form.company} onChange={set("company")} />
-                </div>
-                <div>
-                  <label className="label">Téléphone</label>
+                  <label className="label">Téléphone <span className="text-brand-700/40 font-normal">(optionnel)</span></label>
                   <input className="input" value={form.phone} onChange={set("phone")} />
                 </div>
+              </div>
+              <div className="flex items-start gap-2.5 rounded-xl bg-brand-50/70 border border-brand-100 px-3.5 py-2.5">
+                <Building2 size={16} className="text-brand-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-brand-700/70">Après inscription, vous obtenez un <b>identifiant de compte</b> à transmettre à l'administrateur de votre entreprise pour être ajouté à ses projets.</p>
               </div>
               <button type="submit" disabled={loading} className="btn-primary w-full">
                 {loading ? <Loader2 className="animate-spin" size={18} /> : <>Créer mon compte <ArrowRight size={18} /></>}

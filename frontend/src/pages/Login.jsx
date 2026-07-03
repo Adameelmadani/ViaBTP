@@ -6,16 +6,17 @@ import Logo from "../components/Logo.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 
 const DEMO = [
-  { label: "Administrateur", email: "admin@viabtp.ma" },
-  { label: "Conducteur de travaux", email: "conducteur@viabtp.ma" },
-  { label: "Chef de chantier", email: "chef@viabtp.ma" },
+  { label: "Admin entreprise (STGM)", email: "admin@stgm.ma" },
+  { label: "Conducteur de travaux", email: "conducteur@stgm.ma" },
+  { label: "Architecte (multi-entreprises)", email: "archi@viabtp.ma" },
+  { label: "Super-admin plateforme", email: "admin@viabtp.ma" },
 ];
 
 export default function Login() {
   const { login } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("admin@viabtp.ma");
+  const [email, setEmail] = useState("admin@stgm.ma");
   const [password, setPassword] = useState("password123");
   const [loading, setLoading] = useState(false);
 
@@ -23,9 +24,10 @@ export default function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password);
+      const data = await login(email, password);
       toast("Connexion réussie");
-      navigate("/dashboard");
+      const home = data.user?.platformRole === "SUPERADMIN" ? "/admin" : (data.memberships?.length ? "/dashboard" : "/onboarding");
+      navigate(home);
     } catch (err) {
       toast(err.response?.data?.message || "Échec de la connexion", "error");
     } finally {
@@ -59,19 +61,18 @@ export default function Login() {
           <span className="font-display text-2xl font-extrabold">Via<span className="text-gradient-accent">BTP</span></span>
         </Link>
         <div className="relative">
-          <p className="mono-tag mb-3">[ plateforme de pilotage de chantier ]</p>
+          <p className="mono-tag mb-3">[ la meilleure plateform du BTP ]</p>
           <h1 className="text-4xl font-extrabold leading-tight text-brand-900">
-            Pilotez vos chantiers <br /> <span className="text-gradient-accent">en temps réel.</span>
+            L'espace de votre <br /> <span className="text-gradient-accent">entreprise de chantier.</span>
           </h1>
           <p className="text-sm mt-4 text-brand-700/80 max-w-md">
-            La plateforme centralisée de suivi de chantier : avancement, réserves, documents,
-            planning, approvisionnement et finance au même endroit.
+            Un espace privé pour piloter tous vos chantiers, vos équipes et vos approvisionnements. Vos données restent les vôtres : vous décidez qui voit quoi, sur quel projet.
           </p>
           <div className="mt-8 space-y-3 max-w-sm">
             {[
-              { icon: BarChart3, t: "Avancement physique & financier en direct" },
-              { icon: ShieldCheck, t: "Réserves, non-conformités & qualité" },
-              { icon: Building2, t: "Gestion multi-projets & intervenants" },
+              { icon: Building2, t: "Un espace privé et isolé pour l'entreprise" },
+              { icon: ShieldCheck, t: "Accès précis, par projet et par module" },
+              { icon: BarChart3, t: "Avancement, réserves & finance en direct" },
             ].map((f, i) => (
               <div key={i} className="flex items-center gap-3 bg-white/70 backdrop-blur rounded-2xl px-4 py-3 border border-brand-100 shadow-glass-sm">
                 <f.icon size={20} className="text-accent-500" />

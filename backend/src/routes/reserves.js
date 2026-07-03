@@ -1,19 +1,20 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity, notify } from "../lib/helpers.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireProjectLevel, scopeProjectQuery } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
-const userSel = { select: { id: true, firstName: true, lastName: true, role: true } };
+const userSel = { select: { id: true, firstName: true, lastName: true } };
+const reserveProject = async (id) => (await prisma.reserve.findUnique({ where: { id }, select: { projectId: true } }))?.projectId;
 
 router.get(
   "/",
+  scopeProjectQuery,
   asyncHandler(async (req, res) => {
-    const { projectId, status, priority } = req.query;
-    const where = {};
-    if (projectId) where.projectId = projectId;
+    const { status, priority } = req.query;
+    const where = { ...req.projectScope };
     if (status) where.status = status;
     if (priority) where.priority = priority;
     const reserves = await prisma.reserve.findMany({
@@ -27,6 +28,7 @@ router.get(
 
 router.get(
   "/:id",
+  requireProjectLevel("reserves", "VIEW", (req) => reserveProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const reserve = await prisma.reserve.findUnique({
       where: { id: req.params.id },
@@ -39,6 +41,7 @@ router.get(
 
 router.post(
   "/",
+  requireProjectLevel("reserves", "CONTRIBUTE", (req) => req.body.projectId),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const reserve = await prisma.reserve.create({
@@ -67,6 +70,7 @@ router.post(
 
 router.put(
   "/:id",
+  requireProjectLevel("reserves", "CONTRIBUTE", (req) => reserveProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const data = {
@@ -83,6 +87,7 @@ router.put(
 
 router.delete(
   "/:id",
+  requireProjectLevel("reserves", "MANAGE", (req) => reserveProject(req.params.id)),
   asyncHandler(async (req, res) => {
     await prisma.reserve.delete({ where: { id: req.params.id } });
     res.json({ message: "Réserve supprimée" });

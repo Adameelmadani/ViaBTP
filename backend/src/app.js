@@ -9,6 +9,8 @@ import { uploadDir } from "./middleware/upload.js";
 
 import authRoutes from "./routes/auth.js";
 import userRoutes from "./routes/users.js";
+import companyRoutes from "./routes/companies.js";
+import memberRoutes from "./routes/members.js";
 import projectRoutes from "./routes/projects.js";
 import lotRoutes from "./routes/lots.js";
 import reserveRoutes from "./routes/reserves.js";
@@ -46,6 +48,8 @@ app.get("/api/health", (req, res) => res.json({ status: "ok", service: "ViaBTP A
 // Routes API
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
+app.use("/api/companies", companyRoutes);
+app.use("/api/members", memberRoutes);
 app.use("/api/projects", projectRoutes);
 app.use("/api/lots", lotRoutes);
 app.use("/api/reserves", reserveRoutes);

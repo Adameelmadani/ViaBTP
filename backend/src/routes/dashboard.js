@@ -1,28 +1,32 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler } from "../lib/helpers.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, tenantContext, accessibleProjectIds } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
-// Tableau de bord global (4.3)
+// Tableau de bord de l'entreprise active
 router.get(
   "/",
   asyncHandler(async (req, res) => {
+    const ids = await accessibleProjectIds(req);
+    const projScope = { projectId: { in: ids } };
+    const companyId = req.company.id;
+
     const [
       projects, reservesOpen, reservesTotal, materials, recentPhotos,
       finances, projectsByStatus, recentActivity, lateTasks,
     ] = await Promise.all([
-      prisma.project.findMany({ orderBy: { createdAt: "desc" } }),
-      prisma.reserve.count({ where: { status: { in: ["OUVERTE", "EN_COURS"] } } }),
-      prisma.reserve.count(),
-      prisma.material.findMany(),
-      prisma.photo.findMany({ orderBy: { takenAt: "desc" }, take: 6, include: { project: { select: { name: true } } } }),
-      prisma.financeRecord.findMany({ where: { status: { in: ["VALIDEE", "PAYEE"] } } }),
-      prisma.project.groupBy({ by: ["status"], _count: true }),
+      prisma.project.findMany({ where: { id: { in: ids } }, orderBy: { createdAt: "desc" } }),
+      prisma.reserve.count({ where: { status: { in: ["OUVERTE", "EN_COURS"] }, ...projScope } }),
+      prisma.reserve.count({ where: { ...projScope } }),
+      prisma.material.findMany({ where: { companyId } }),
+      prisma.photo.findMany({ where: { ...projScope }, orderBy: { takenAt: "desc" }, take: 6, include: { project: { select: { name: true } } } }),
+      prisma.financeRecord.findMany({ where: { status: { in: ["VALIDEE", "PAYEE"] }, ...projScope } }),
+      prisma.project.groupBy({ by: ["status"], _count: true, where: { id: { in: ids } } }),
       prisma.activityLog.findMany({ orderBy: { createdAt: "desc" }, take: 8, include: { user: { select: { firstName: true, lastName: true } } } }),
-      prisma.task.findMany({ where: { status: "EN_RETARD" }, take: 5, include: { project: { select: { name: true } } } }),
+      prisma.task.findMany({ where: { status: "EN_RETARD", ...projScope }, take: 5, include: { project: { select: { name: true } } } }),
     ]);
 
     const activeProjects = projects.filter((p) => p.status === "EN_COURS").length;

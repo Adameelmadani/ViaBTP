@@ -1,18 +1,20 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity } from "../lib/helpers.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireProjectLevel, scopeProjectQuery } from "../middleware/auth.js";
 import { upload } from "../middleware/upload.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
+
+const docProject = async (id) => (await prisma.document.findUnique({ where: { id }, select: { projectId: true } }))?.projectId;
 
 router.get(
   "/",
+  scopeProjectQuery,
   asyncHandler(async (req, res) => {
-    const { projectId, category, q } = req.query;
-    const where = {};
-    if (projectId) where.projectId = projectId;
+    const { category, q } = req.query;
+    const where = { ...req.projectScope };
     if (category) where.category = category;
     if (q) where.name = { contains: q, mode: "insensitive" };
     const docs = await prisma.document.findMany({
@@ -28,6 +30,7 @@ router.get(
 router.post(
   "/",
   upload.single("file"),
+  requireProjectLevel("documents", "CONTRIBUTE", (req) => req.body.projectId),
   asyncHandler(async (req, res) => {
     const b = req.body;
     let url = b.url;
@@ -42,7 +45,6 @@ router.post(
       name = name || req.file.originalname;
     }
 
-    // Gestion des versions: même nom + même projet => version + 1
     const previous = await prisma.document.findFirst({
       where: { projectId: b.projectId, name },
       orderBy: { version: "desc" },
@@ -68,6 +70,7 @@ router.post(
 
 router.patch(
   "/:id/sign",
+  requireProjectLevel("documents", "MANAGE", (req) => docProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const doc = await prisma.document.update({ where: { id: req.params.id }, data: { signed: true } });
     await logActivity({ userId: req.user.id, action: "SIGN", entity: "Document", entityId: doc.id, ip: req.ip });
@@ -77,6 +80,7 @@ router.patch(
 
 router.delete(
   "/:id",
+  requireProjectLevel("documents", "MANAGE", (req) => docProject(req.params.id)),
   asyncHandler(async (req, res) => {
     await prisma.document.delete({ where: { id: req.params.id } });
     res.json({ message: "Document supprimé" });

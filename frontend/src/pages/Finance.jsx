@@ -8,11 +8,16 @@ import { useProjects } from "../lib/hooks.js";
 import { FINANCE_TYPE, FINANCE_STATUS, fmtMAD, enumToOptions } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { useConfirm } from "../context/ConfirmContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Finance() {
   const { toast } = useToast();
   const confirm = useConfirm();
+  const { projectCan } = useAccess();
   const { projects, projectId, setProjectId } = useProjects();
+  const project = projects.find((p) => p.id === projectId);
+  const canEditFin = projectCan(project, "finance", "CONTRIBUTE");
+  const canDelFin = projectCan(project, "finance", "MANAGE");
   const [records, setRecords] = useState(null);
   const [summary, setSummary] = useState(null);
   const [open, setOpen] = useState(false);
@@ -35,7 +40,7 @@ export default function Finance() {
         title="Gestion financière" subtitle="Situations de travaux, décomptes & suivi budgétaire" icon={Wallet}
         actions={<div className="flex gap-2 flex-wrap">
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
-          <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouvelle situation</button>
+          {canEditFin && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouvelle situation</button>}
         </div>}
       />
 
@@ -90,11 +95,11 @@ export default function Finance() {
                       <td className="p-4 text-right font-semibold text-brand-900">{fmtMAD(r.amount)}</td>
                       <td className="p-4 text-right text-brand-700/70">{fmtMAD(r.cumulativeAmount)}</td>
                       <td className="p-4">
-                        <select value={r.status} onChange={(e) => changeStatus(r, e.target.value)} className={`badge border-0 cursor-pointer ${FINANCE_STATUS[r.status].color}`}>
+                        <select value={r.status} onChange={(e) => changeStatus(r, e.target.value)} disabled={!canEditFin} className={`badge border-0 ${canEditFin ? "cursor-pointer" : ""} ${FINANCE_STATUS[r.status].color}`}>
                           {Object.entries(FINANCE_STATUS).map(([k, v]) => <option key={k} value={k}>{v.label}</option>)}
                         </select>
                       </td>
-                      <td className="p-4 text-right"><button className="text-red-500 hover:text-red-700" onClick={() => remove(r)}><Trash2 size={15} /></button></td>
+                      <td className="p-4 text-right">{canDelFin && <button className="text-red-500 hover:text-red-700" onClick={() => remove(r)}><Trash2 size={15} /></button>}</td>
                     </tr>
                   ))}
                 </tbody>

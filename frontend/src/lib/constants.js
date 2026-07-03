@@ -1,5 +1,8 @@
 // Libellés et couleurs des énumérations (français)
 
+// Taille maximale d'un document uploadé (alignée sur la limite serveur Multer).
+export const MAX_DOC_MB = 25;
+
 export const ROLE_LABELS = {
   ADMIN: "Administrateur",
   MAITRE_OUVRAGE: "Maître d'ouvrage",

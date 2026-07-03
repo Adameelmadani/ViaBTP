@@ -7,12 +7,12 @@ import ProjectFormModal from "../components/ProjectFormModal.jsx";
 import { PROJECT_STATUS, fmtMAD } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { useConfirm } from "../context/ConfirmContext.jsx";
-import { useAuth } from "../context/AuthContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Projects() {
   const { toast } = useToast();
   const confirm = useConfirm();
-  const { hasRole } = useAuth();
+  const { canCompany, isCompanyAdmin } = useAccess();
   const [projects, setProjects] = useState(null);
   const [q, setQ] = useState("");
   const [query, setQuery] = useState(""); // valeur debouncée
@@ -33,8 +33,8 @@ export default function Projects() {
   };
   useEffect(() => { load(); }, [query, status]);
 
-  const canCreate = hasRole("MAITRE_OUVRAGE", "ARCHITECTE", "BUREAU_ETUDES", "CONDUCTEUR_TRAVAUX", "ENTREPRISE");
-  const canDelete = hasRole("MAITRE_OUVRAGE");
+  const canCreate = canCompany("projects", "CONTRIBUTE");
+  const canDelete = isCompanyAdmin;
 
   const deleteProject = async (e, p) => {
     e.preventDefault();
@@ -108,7 +108,7 @@ export default function Projects() {
                 </div>
                 <p className="text-sm font-bold text-brand-900 mb-3">{fmtMAD(p.marketAmount)}</p>
                 <div className="mt-auto flex items-center gap-3 text-xs text-brand-700/60 pt-3 border-t border-brand-100/60">
-                  <span className="flex items-center gap-1"><Users2 size={13} /> {p.members?.length || 0}</span>
+                  <span className="flex items-center gap-1"><Users2 size={13} /> {p.access?.length || 0}</span>
                   <span className="flex items-center gap-1"><AlertTriangle size={13} /> {p._count?.reserves || 0}</span>
                   <span className="flex items-center gap-1"><FolderOpen size={13} /> {p._count?.documents || 0}</span>
                   <span className="flex items-center gap-1"><Camera size={13} /> {p._count?.photos || 0}</span>

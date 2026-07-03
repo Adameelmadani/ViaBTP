@@ -12,38 +12,38 @@ import ProjectFormModal from "../components/ProjectFormModal.jsx";
 import { PROJECT_STATUS, LOT_CATEGORIES, ROLE_LABELS, fmtMAD, fmtNum, enumToOptions } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { useConfirm } from "../context/ConfirmContext.jsx";
-import { useAuth } from "../context/AuthContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function ProjectDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const confirm = useConfirm();
-  const { hasRole } = useAuth();
+  const { projectCan, isCompanyAdmin } = useAccess();
   const [project, setProject] = useState(null);
   const [lots, setLots] = useState([]);
-  const [users, setUsers] = useState([]);
   const [tab, setTab] = useState("apercu");
   const [lotModal, setLotModal] = useState(false);
   const [progressModal, setProgressModal] = useState(null);
-  const [memberModal, setMemberModal] = useState(false);
   const [editModal, setEditModal] = useState(false);
-
-  const canEdit = hasRole("MAITRE_OUVRAGE", "ARCHITECTE", "BUREAU_ETUDES", "CONDUCTEUR_TRAVAUX", "ENTREPRISE");
-  const canDelete = hasRole("MAITRE_OUVRAGE");
 
   const load = () => {
     api.get(`/projects/${id}`).then((r) => setProject(r.data)).catch(() => navigate("/projects"));
     api.get(`/lots/project/${id}`).then((r) => setLots(r.data)).catch(() => {});
   };
-  useEffect(() => { load(); api.get("/users").then((r) => setUsers(r.data)); }, [id]);
+  useEffect(() => { load(); }, [id]);
 
   if (!project) return <Spinner />;
+
+  const canEdit = projectCan(project, "overview", "MANAGE");
+  const canDelete = isCompanyAdmin;
+  const canManageLots = projectCan(project, "lots", "MANAGE");
+  const canProgress = projectCan(project, "lots", "CONTRIBUTE");
 
   const tabs = [
     { value: "apercu", label: "Aperçu", icon: Building2 },
     { value: "lots", label: "Lots & avancement", icon: Layers, count: lots.length },
-    { value: "intervenants", label: "Intervenants", icon: Users2, count: project.members?.length },
+    { value: "intervenants", label: "Intervenants", icon: Users2, count: project.access?.length },
   ];
 
   const deleteLot = async (lotId) => {
@@ -65,12 +65,6 @@ export default function ProjectDetail() {
     } catch (err) {
       toast(err.response?.data?.message || "Suppression impossible", "error");
     }
-  };
-
-  const removeMember = async (memberId) => {
-    if (!(await confirm({ message: "Retirer cet intervenant du projet ?", confirmLabel: "Retirer" }))) return;
-    await api.delete(`/projects/${id}/members/${memberId}`);
-    load(); toast("Intervenant retiré");
   };
 
   return (
@@ -155,7 +149,7 @@ export default function ProjectDetail() {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-brand-900">Lots de travaux</h3>
-            <button className="btn-soft btn-sm" onClick={() => setLotModal(true)}><Plus size={15} /> Ajouter un lot</button>
+            {canManageLots && <button className="btn-soft btn-sm" onClick={() => setLotModal(true)}><Plus size={15} /> Ajouter un lot</button>}
           </div>
           {lots.length === 0 ? (
             <EmptyState icon={Layers} title="Aucun lot" subtitle="Ajoutez les lots (gros œuvre, VRD, etc.) pour suivre l'avancement." />
@@ -168,10 +162,12 @@ export default function ProjectDetail() {
                       <p className="font-semibold text-brand-900">{lot.name}</p>
                       <p className="text-xs text-brand-700/60">{LOT_CATEGORIES[lot.category]} · Poids {lot.weight}% · {fmtMAD(lot.amount)}</p>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button className="btn-soft btn-sm" onClick={() => setProgressModal(lot)}><TrendingUp size={14} /> Avancement</button>
-                      <button className="btn-danger btn-sm" onClick={() => deleteLot(lot.id)}><Trash2 size={14} /></button>
-                    </div>
+                    {(canProgress || canManageLots) && (
+                      <div className="flex items-center gap-2">
+                        {canProgress && <button className="btn-soft btn-sm" onClick={() => setProgressModal(lot)}><TrendingUp size={14} /> Avancement</button>}
+                        {canManageLots && <button className="btn-danger btn-sm" onClick={() => deleteLot(lot.id)}><Trash2 size={14} /></button>}
+                      </div>
+                    )}
                   </div>
                   <div className="grid sm:grid-cols-2 gap-3 mt-2">
                     <div>
@@ -194,25 +190,19 @@ export default function ProjectDetail() {
         <Card>
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-brand-900">Intervenants du projet</h3>
-            <button className="btn-soft btn-sm" onClick={() => setMemberModal(true)}><Plus size={15} /> Ajouter</button>
+            {isCompanyAdmin && <Link to="/members" className="btn-soft btn-sm"><Pencil size={14} /> Gérer les accès</Link>}
           </div>
-          {(!project.members || project.members.length === 0) ? (
-            <EmptyState icon={Users2} title="Aucun intervenant" />
+          {(!project.access || project.access.length === 0) ? (
+            <EmptyState icon={Users2} title="Aucun intervenant" subtitle="Ajoutez des membres depuis « Équipe & accès »." />
           ) : (
             <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              {project.members.map((m) => (
-                <div key={m.id} className="group flex items-center gap-3 p-3 rounded-2xl bg-white/50 border border-white/60">
-                  <Avatar name={`${m.user.firstName} ${m.user.lastName}`} size={42} />
+              {project.access.map((a) => (
+                <div key={a.id} className="flex items-center gap-3 p-3 rounded-2xl bg-white/50 border border-white/60">
+                  <Avatar name={`${a.user.firstName} ${a.user.lastName}`} size={42} />
                   <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-brand-900 truncate">{m.user.firstName} {m.user.lastName}</p>
-                    <p className="text-xs text-brand-700/60">{m.roleLabel || ROLE_LABELS[m.user.role]}</p>
+                    <p className="font-semibold text-brand-900 truncate">{a.user.firstName} {a.user.lastName}</p>
+                    <p className="text-xs text-brand-700/60">{a.roleLabel || ROLE_LABELS[a.type] || a.type || "Intervenant"}</p>
                   </div>
-                  {canEdit && (
-                    <button onClick={() => removeMember(m.id)} title="Retirer"
-                      className="opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-700 transition shrink-0">
-                      <X size={16} />
-                    </button>
-                  )}
                 </div>
               ))}
             </div>
@@ -222,7 +212,6 @@ export default function ProjectDetail() {
 
       <LotModal open={lotModal} onClose={() => setLotModal(false)} projectId={id} onSaved={() => { setLotModal(false); load(); toast("Lot ajouté"); }} />
       <ProgressModal lot={progressModal} onClose={() => setProgressModal(null)} onSaved={() => { setProgressModal(null); load(); toast("Avancement enregistré"); }} />
-      <MemberModal open={memberModal} onClose={() => setMemberModal(false)} projectId={id} users={users} existing={project.members} onSaved={() => { setMemberModal(false); load(); toast("Intervenant ajouté"); }} />
       <ProjectFormModal open={editModal} project={project} onClose={() => setEditModal(false)} onSaved={() => { setEditModal(false); load(); toast("Projet mis à jour"); }} />
     </div>
   );
@@ -278,26 +267,3 @@ function ProgressModal({ lot, onClose, onSaved }) {
   );
 }
 
-function MemberModal({ open, onClose, projectId, users, existing, onSaved }) {
-  const [userId, setUserId] = useState("");
-  const existingIds = new Set((existing || []).map((m) => m.user.id));
-  const available = users.filter((u) => !existingIds.has(u.id));
-  const submit = async (e) => {
-    e.preventDefault();
-    await api.post(`/projects/${projectId}/members`, { userId });
-    setUserId(""); onSaved();
-  };
-  return (
-    <Modal open={open} onClose={onClose} title="Ajouter un intervenant">
-      <form onSubmit={submit} className="space-y-4">
-        <Field label="Utilisateur">
-          <Select value={userId} onChange={(e) => setUserId(e.target.value)} required>
-            <option value="">Sélectionner...</option>
-            {available.map((u) => <option key={u.id} value={u.id}>{u.firstName} {u.lastName} - {ROLE_LABELS[u.role]}</option>)}
-          </Select>
-        </Field>
-        <div className="flex justify-end gap-2"><button type="button" className="btn-ghost" onClick={onClose}>Annuler</button><button className="btn-primary"><Plus size={16} /> Ajouter</button></div>
-      </form>
-    </Modal>
-  );
-}

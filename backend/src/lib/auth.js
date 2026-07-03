@@ -25,3 +25,8 @@ export function publicUser(user) {
   const { password, ...rest } = user;
   return rest;
 }
+
+// Identifiant de compte court et partageable (pour être ajouté à une entreprise).
+export function generateAccountId() {
+  return "VBT-" + Math.random().toString(36).slice(2, 8).toUpperCase();
+}

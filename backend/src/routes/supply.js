@@ -1,24 +1,24 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity, notify } from "../lib/helpers.js";
-import { authenticate, authorize } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireProjectLevel, scopeProjectQuery } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
 const include = {
   requester: { select: { id: true, firstName: true, lastName: true } },
   material: { select: { id: true, designation: true, reference: true, unit: true, unitPrice: true } },
   project: { select: { id: true, name: true } },
 };
+const supplyProject = async (id) => (await prisma.supplyRequest.findUnique({ where: { id }, select: { projectId: true } }))?.projectId;
 
-// Demandes d'approvisionnement (4.11.2)
 router.get(
   "/",
+  scopeProjectQuery,
   asyncHandler(async (req, res) => {
-    const { projectId, status } = req.query;
-    const where = {};
-    if (projectId) where.projectId = projectId;
+    const { status } = req.query;
+    const where = { ...req.projectScope };
     if (status) where.status = status;
     const requests = await prisma.supplyRequest.findMany({ where, orderBy: { createdAt: "desc" }, include });
     res.json(requests);
@@ -27,6 +27,7 @@ router.get(
 
 router.post(
   "/",
+  requireProjectLevel("supply", "CONTRIBUTE", (req) => req.body.projectId),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const request = await prisma.supplyRequest.create({
@@ -47,10 +48,10 @@ router.post(
   })
 );
 
-// Changement de statut (workflow: validation, commande, livraison...)
+// Changement de statut (validation, commande, livraison, rejet...)
 router.patch(
   "/:id/status",
-  authorize("CONDUCTEUR_TRAVAUX", "MAITRE_OUVRAGE", "ENTREPRISE"),
+  requireProjectLevel("supply", "MANAGE", (req) => supplyProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const { status } = req.body;
     const request = await prisma.supplyRequest.update({
@@ -70,6 +71,7 @@ router.patch(
 
 router.put(
   "/:id",
+  requireProjectLevel("supply", "CONTRIBUTE", (req) => supplyProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const data = { observations: b.observations, urgency: b.urgency, status: b.status };
@@ -83,6 +85,7 @@ router.put(
 
 router.delete(
   "/:id",
+  requireProjectLevel("supply", "MANAGE", (req) => supplyProject(req.params.id)),
   asyncHandler(async (req, res) => {
     await prisma.supplyRequest.delete({ where: { id: req.params.id } });
     res.json({ message: "Demande supprimée" });

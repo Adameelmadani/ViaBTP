@@ -4,16 +4,19 @@ import api from "../api/client.js";
 import { PageHeader, Card, Spinner, Modal, Field, Input, Select, EmptyState, Badge } from "../components/ui.jsx";
 import ProjectPicker from "../components/ProjectPicker.jsx";
 import { useProjects } from "../lib/hooks.js";
-import { DOC_CATEGORIES, enumToOptions } from "../lib/constants.js";
+import { DOC_CATEGORIES, MAX_DOC_MB, enumToOptions } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { useConfirm } from "../context/ConfirmContext.jsx";
-import { useAuth } from "../context/AuthContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Documents() {
   const { toast } = useToast();
   const confirm = useConfirm();
-  const { hasRole } = useAuth();
+  const { projectCan } = useAccess();
   const { projects, projectId, setProjectId } = useProjects();
+  const project = projects.find((p) => p.id === projectId);
+  const canAdd = projectCan(project, "documents", "CONTRIBUTE");
+  const canManage = projectCan(project, "documents", "MANAGE");
   const [docs, setDocs] = useState(null);
   const [category, setCategory] = useState("");
   const [q, setQ] = useState("");
@@ -42,7 +45,7 @@ export default function Documents() {
         title="Gestion documentaire" subtitle="Plans, PV, rapports, contrats versionnés" icon={FolderOpen}
         actions={<div className="flex gap-2 flex-wrap">
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
-          <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Ajouter</button>
+          {canAdd && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Ajouter</button>}
         </div>}
       />
 
@@ -63,19 +66,21 @@ export default function Documents() {
         <Card className="p-0 overflow-hidden">
           <div className="divide-y divide-brand-100/60">
             {docs.map((d) => (
-              <div key={d.id} className="flex items-center gap-4 p-4 hover:bg-white/40 transition">
+              <div key={d.id} className="flex flex-wrap items-center gap-x-4 gap-y-2.5 p-4 hover:bg-white/40 transition">
                 <div className="grid place-items-center w-11 h-11 rounded-xl bg-brand-50 text-brand-600 shrink-0"><FileText size={20} /></div>
-                <div className="min-w-0 flex-1">
+                <div className="min-w-0 flex-1 basis-40">
                   <p className="font-semibold text-brand-900 truncate">{d.name}</p>
-                  <p className="text-xs text-brand-700/60">{d.uploadedBy?.firstName} {d.uploadedBy?.lastName} · {new Date(d.createdAt).toLocaleDateString("fr-FR")}</p>
+                  <p className="text-xs text-brand-700/60 truncate">{d.uploadedBy?.firstName} {d.uploadedBy?.lastName} · {new Date(d.createdAt).toLocaleDateString("fr-FR")}</p>
                 </div>
-                <Badge className="bg-brand-50 text-brand-700">{DOC_CATEGORIES[d.category]}</Badge>
-                <Badge className="bg-sky-50 text-sky-700">v{d.version}</Badge>
-                {d.signed && <Badge className="bg-emerald-100 text-emerald-700"><PenLine size={11} /> Signé</Badge>}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Badge className="bg-brand-50 text-brand-700">{DOC_CATEGORIES[d.category]}</Badge>
+                  <Badge className="bg-sky-50 text-sky-700">v{d.version}</Badge>
+                  {d.signed && <Badge className="bg-emerald-100 text-emerald-700"><PenLine size={11} /> Signé</Badge>}
+                </div>
                 <div className="flex items-center gap-1.5 shrink-0">
                   <a href={d.url} target="_blank" rel="noreferrer" className="btn-ghost btn-sm"><Download size={14} /></a>
-                  {!d.signed && <button className="btn-soft btn-sm" onClick={() => sign(d)}><PenLine size={14} /></button>}
-                  <button className="btn-danger btn-sm" onClick={() => remove(d)}><Trash2 size={14} /></button>
+                  {!d.signed && canManage && <button className="btn-soft btn-sm" onClick={() => sign(d)}><PenLine size={14} /></button>}
+                  {canManage && <button className="btn-danger btn-sm" onClick={() => remove(d)}><Trash2 size={14} /></button>}
                 </div>
               </div>
             ))}
@@ -93,6 +98,17 @@ function DocModal({ open, onClose, projectId, onSaved }) {
   const [form, setForm] = useState({ category: "PLAN" });
   const [file, setFile] = useState(null);
   const set = (k) => (e) => setForm({ ...form, [k]: e.target.value });
+
+  const pickFile = (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > MAX_DOC_MB * 1024 * 1024) {
+      toast(`Fichier trop volumineux (max ${MAX_DOC_MB} Mo)`, "error");
+      e.target.value = "";
+      return;
+    }
+    setFile(f);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -114,8 +130,9 @@ function DocModal({ open, onClose, projectId, onSaved }) {
           <label className="flex items-center gap-2 input cursor-pointer">
             <Upload size={16} className="text-brand-400" />
             <span className="text-sm text-brand-700/70 truncate">{file ? file.name : "Choisir un fichier..."}</span>
-            <input type="file" className="hidden" onChange={(e) => setFile(e.target.files[0])} />
+            <input type="file" className="hidden" onChange={pickFile} />
           </label>
+          <p className="text-[11px] text-brand-700/50 mt-1">Taille maximale : {MAX_DOC_MB} Mo.</p>
         </Field>
         <Field label="Nom du document"><Input value={form.name || ""} onChange={set("name")} placeholder="Optionnel (repris du fichier)" /></Field>
         <Field label="Catégorie">

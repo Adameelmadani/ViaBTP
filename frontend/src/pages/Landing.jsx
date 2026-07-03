@@ -31,10 +31,10 @@ const FLOAT_TAGS = [
 ];
 
 const STATS = [
-  { v: "11", l: "modules métier" },
-  { v: "9", l: "rôles & permissions" },
-  { v: "MAD", l: "devise & contexte local" },
-  { v: "<3s", l: "temps de réponse" },
+  { v: "1", l: "plateforme, tous vos chantiers" },
+  { v: "∞", l: "projets & équipes par entreprise" },
+  { v: "100%", l: "vos données, isolées & privées" },
+  { v: "24/7", l: "accès temps réel, terrain & bureau" },
 ];
 
 const PROBLEMS = [
@@ -45,10 +45,10 @@ const PROBLEMS = [
 ];
 
 const STEPS = [
-  { n: "01", t: "Tout au même endroit", d: "Projets, lots, documents, photos, réunions, finance et matériaux dans un espace unique et structuré." },
-  { n: "02", t: "Analytique & alertes", d: "Tableaux de bord en temps réel : taux d'avancement, retards, réserves ouvertes, situation financière." },
-  { n: "03", t: "Pensé pour le terrain", d: "Saisie mobile, photos horodatées et géolocalisées, mode hors-ligne et synchronisation automatique." },
-  { n: "04", t: "Approvisionnement maîtrisé", d: "Stock, fournisseurs, demandes et bons de commande, alertes de seuil et valorisation." },
+  { n: "01", t: "Votre espace entreprise", d: "Vous disposez de votre espace privé : vos projets, vos équipes, vos fournisseurs et vos données, totalement isolés." },
+  { n: "02", t: "Invitez votre équipe", d: "Ajoutez vos collaborateurs par leur identifiant et attribuez des accès précis, module par module et projet par projet." },
+  { n: "03", t: "Pilotez en temps réel", d: "Tableaux de bord vivants : avancement, retards, réserves ouvertes et situation financière, consolidés sur tous vos chantiers." },
+  { n: "04", t: "Pensé pour le terrain", d: "Photos horodatées et géolocalisées, saisie mobile, approvisionnement et stock maîtrisés, du gros œuvre à la livraison." },
 ];
 
 const MODULES = [
@@ -61,8 +61,8 @@ const MODULES = [
   { icon: Coins, t: "Finance", d: "Situations & décomptes" },
   { icon: Bricks, t: "Matériaux", d: "Catalogue & fiches" },
   { icon: Pallet, t: "Stock", d: "Mouvements & valorisation" },
-  { icon: Users, t: "Utilisateurs", d: "9 rôles & permissions" },
-  { icon: Shield, t: "Sécurité", d: "JWT, RBAC, journal" },
+  { icon: Users, t: "Équipe & accès", d: "Droits par projet & module" },
+  { icon: Shield, t: "Sécurité", d: "Données isolées par entreprise" },
   { icon: Activity, t: "Journal d'activité", d: "Traçabilité complète" },
 ];
 
@@ -104,10 +104,10 @@ function Gem() {
 }
 
 export default function Landing() {
-  const { user } = useAuth();
+  const { user, memberships, isSuperAdmin } = useAuth();
   useReveal();
-  const appLink = user ? "/dashboard" : "/login";
-  const appLabel = user ? "Ouvrir le tableau de bord" : "Accéder à l'application";
+  const appLink = !user ? "/login" : isSuperAdmin ? "/admin" : memberships.length ? "/dashboard" : "/onboarding";
+  const appLabel = user ? "Ouvrir mon espace" : "Accéder à la plateforme";
 
   // Défilement doux et animé vers la section ciblée
   const scrollToId = (e, id) => {
@@ -150,13 +150,13 @@ export default function Landing() {
         <div className="relative max-w-7xl mx-auto grid lg:grid-cols-2 gap-10 items-center">
           {/* texte */}
           <div className="animate-reveal">
-            <h1 className="mt-6 font-display text-5xl lg:text-6xl font-extrabold leading-[1.05] text-brand-900">
-              Le pilotage de chantier,<br />
-              <span className="text-gradient-accent">sans approximation.</span>
+            <p className="mono-tag">[ la meilleure plateform du BTP ]</p>
+            <h1 className="mt-4 font-display text-5xl lg:text-6xl font-extrabold leading-[1.05] text-brand-900">
+              Toute votre entreprise<br />
+              <span className="text-gradient-accent">de chantier, réunie.</span>
             </h1>
             <p className="mt-6 text-base lg:text-lg text-brand-700/80 max-w-xl">
-              ViaBTP réunit avancement, réserves, documents, planning, approvisionnement et
-              finance dans une seule plateforme. Analytique, terrain et décisions, au même endroit.
+              ViaBTP vous donne un espace privé pour piloter tous vos chantiers, vos équipes et vos approvisionnements. Vos données restent les vôtres : vous décidez qui voit quoi, sur quel projet.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-3">
               <Link to={appLink} className="btn-primary px-6 py-3 text-base">
@@ -243,9 +243,9 @@ export default function Landing() {
         <div className="absolute inset-0 grid-overlay grid-overlay-fade opacity-40" />
         <div className="relative max-w-7xl mx-auto">
           <div className="reveal-on-scroll max-w-3xl">
-            <p className="mono-tag">[ notre approche ]</p>
+            <p className="mono-tag">[ comment ça marche ]</p>
             <h2 className="mt-3 font-display text-4xl lg:text-5xl font-extrabold text-brand-900">
-              Une plateforme,<br /><span className="text-gradient-green">quatre certitudes.</span>
+              De l'inscription au chantier,<br /><span className="text-gradient-green">en quatre étapes.</span>
             </h2>
           </div>
           <div className="mt-10 grid md:grid-cols-2 xl:grid-cols-4 gap-4">
@@ -268,10 +268,10 @@ export default function Landing() {
             <div className="max-w-2xl">
               <p className="mono-tag">[ couverture fonctionnelle ]</p>
               <h2 className="mt-3 font-display text-4xl lg:text-5xl font-extrabold text-brand-900">
-                11 modules, <span className="text-gradient-accent">zéro angle mort.</span>
+                Tout le métier, <span className="text-gradient-accent">zéro angle mort.</span>
               </h2>
             </div>
-            <Link to={appLink} className="btn-ghost">Explorer l'application <ArrowUpRight size={16} /></Link>
+            <Link to={appLink} className="btn-ghost">Explorer la plateforme <ArrowUpRight size={16} /></Link>
           </div>
           <div className="mt-10 grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {MODULES.map((m, i) => (
@@ -312,20 +312,21 @@ export default function Landing() {
           <div className="relative">
             <Sparkles className="mx-auto text-accent-500" size={28} />
             <h2 className="mt-4 font-display text-4xl lg:text-5xl font-extrabold text-brand-900">
-              Prêt à piloter <span className="text-gradient-green">en temps réel</span> ?
+              Donnez à votre entreprise <span className="text-gradient-green">son espace</span>.
             </h2>
             <p className="mt-4 text-brand-700/70 max-w-xl mx-auto">
-              Connectez-vous avec un compte de démonstration et explorez les 11 modules de ViaBTP.
+              Créez votre compte en quelques secondes, puis rejoignez ou lancez l'espace de votre
+              entreprise. Vos chantiers, vos équipes, vos règles.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-              <Link to={appLink} className="btn-primary px-7 py-3.5 text-base">
-                {appLabel} <ArrowRight size={18} />
+              <Link to={user ? appLink : "/register"} className="btn-primary px-7 py-3.5 text-base">
+                {user ? appLabel : "Créer mon compte"} <ArrowRight size={18} />
               </Link>
               {!user && (
-                <Link to="/register" className="btn-ghost px-7 py-3.5 text-base">Créer un compte</Link>
+                <Link to="/login" className="btn-ghost px-7 py-3.5 text-base">J'ai déjà un compte</Link>
               )}
             </div>
-            <p className="mt-6 font-mono text-xs text-brand-700/50">Le pilotage de chantier, sans approximation.</p>
+            <p className="mt-6 font-mono text-xs text-brand-700/50">la meilleure plateform du BTP.</p>
           </div>
         </div>
       </section>

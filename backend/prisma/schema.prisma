@@ -11,6 +11,9 @@ datasource db {
 
 // ───────────────────────────── ENUMS ─────────────────────────────
 
+// Type de profil métier d'un compte au sein d'une entreprise (sert de préréglage
+// de permissions). Ce ne sont plus des rôles globaux : le rôle « plateforme »
+// vit dans PlatformRole, et les droits effectifs dans CompanyMembership / ProjectAccess.
 enum Role {
   ADMIN
   MAITRE_OUVRAGE
@@ -21,6 +24,20 @@ enum Role {
   CONDUCTEUR_TRAVAUX
   CHEF_CHANTIER
   VISITEUR
+}
+
+// Rôle au niveau de la plateforme (SaaS).
+enum PlatformRole {
+  SUPERADMIN // administrateur de la plateforme : crée les entreprises et désigne leur admin
+  MEMBER     // utilisateur normal (accès dépend de ses adhésions à des entreprises)
+}
+
+// Niveau d'accès à un module (entreprise ou projet).
+enum AccessLevel {
+  NONE       // invisible
+  VIEW       // lecture seule
+  CONTRIBUTE // créer / modifier son contenu
+  MANAGE     // tout, y compris supprimer / valider / signer / changer de statut
 }
 
 enum ProjectStatus {
@@ -138,33 +155,69 @@ enum NotificationType {
 // ───────────────────────────── USERS ─────────────────────────────
 
 model User {
-  id        String   @id @default(cuid())
-  email     String   @unique
-  password  String
-  firstName String
-  lastName  String
-  role      Role     @default(VISITEUR)
-  phone     String?
-  avatar    String?
-  company   String?
-  isActive  Boolean  @default(true)
-  lastLogin DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id           String       @id @default(cuid())
+  accountId    String       @unique // identifiant court partageable (pour être ajouté à une entreprise)
+  email        String       @unique
+  password     String
+  firstName    String
+  lastName     String
+  platformRole PlatformRole @default(MEMBER)
+  phone        String?
+  avatar       String?
+  isActive     Boolean      @default(true)
+  lastLogin    DateTime?
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
 
-  memberships      ProjectMember[]
-  progressUpdates  ProgressUpdate[]
-  reservesCreated  Reserve[]        @relation("ReserveCreator")
-  reservesAssigned Reserve[]        @relation("ReserveAssignee")
-  documents        Document[]
-  photos           Photo[]
-  tasks            Task[]
-  meetingsCreated  Meeting[]
-  attendances      MeetingAttendee[]
-  meetingActions   MeetingAction[]
-  supplyRequests   SupplyRequest[]
-  activityLogs     ActivityLog[]
-  notifications    Notification[]
+  companyMemberships CompanyMembership[]
+  projectAccess      ProjectAccess[]
+  progressUpdates    ProgressUpdate[]
+  reservesCreated    Reserve[]           @relation("ReserveCreator")
+  reservesAssigned   Reserve[]           @relation("ReserveAssignee")
+  documents          Document[]
+  photos             Photo[]
+  tasks              Task[]
+  meetingsCreated    Meeting[]
+  attendances        MeetingAttendee[]
+  meetingActions     MeetingAction[]
+  supplyRequests     SupplyRequest[]
+  activityLogs       ActivityLog[]
+  notifications      Notification[]
+}
+
+// ───────────────────────────── ENTREPRISES (TENANTS) ─────────────────────────────
+
+model Company {
+  id          String   @id @default(cuid())
+  name        String
+  reference   String   @unique // slug / identifiant lisible
+  logo        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  memberships CompanyMembership[]
+  projects    Project[]
+  suppliers   Supplier[]
+  materials   Material[]
+  orders      PurchaseOrder[]
+  movements   StockMovement[]
+}
+
+// Adhésion d'un compte à une entreprise (un compte peut appartenir à plusieurs entreprises).
+model CompanyMembership {
+  id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type          Role     @default(VISITEUR) // profil métier (préréglage des droits)
+  isCompanyAdmin Boolean @default(false)    // gère les utilisateurs, projets et droits de l'entreprise
+  companyLevels Json     @default("{}")      // niveaux des modules « entreprise » (materials, suppliers, stock, orders, projects)
+  createdAt     DateTime @default(now())
+
+  @@unique([companyId, userId])
+  @@index([userId])
 }
 
 model ActivityLog {
@@ -199,8 +252,10 @@ model Notification {
 
 model Project {
   id              String        @id @default(cuid())
+  companyId       String
+  company         Company       @relation(fields: [companyId], references: [id], onDelete: Cascade)
   name            String
-  reference       String        @unique
+  reference       String
   description     String?
   address         String?
   latitude        Float?
@@ -216,7 +271,7 @@ model Project {
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
 
-  members      ProjectMember[]
+  access       ProjectAccess[]
   lots         Lot[]
   reserves     Reserve[]
   documents    Document[]
@@ -227,17 +282,25 @@ model Project {
   supplyReqs   SupplyRequest[]
   orders       PurchaseOrder[]
   movements    StockMovement[]
+
+  @@unique([companyId, reference])
+  @@index([companyId])
 }
 
-model ProjectMember {
+// Accès d'un compte à un projet + niveaux par module (indépendant par projet).
+model ProjectAccess {
   id        String  @id @default(cuid())
   projectId String
   project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
   userId    String
   user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      Role?   // profil métier ayant servi de préréglage (indicatif)
   roleLabel String?
+  levels    Json    @default("{}") // { overview|lots|documents|photos|meetings|reserves|planning|finance|supply : AccessLevel }
+  createdAt DateTime @default(now())
 
   @@unique([projectId, userId])
+  @@index([userId])
 }
 
 // ───────────────────────────── LOTS / AVANCEMENT ─────────────────────────────
@@ -432,6 +495,8 @@ model FinanceRecord {
 
 model Supplier {
   id            String   @id @default(cuid())
+  companyId     String
+  company       Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
   name          String
   contactName   String?
   email         String?
@@ -444,12 +509,16 @@ model Supplier {
 
   materials Material[]
   orders    PurchaseOrder[]
+
+  @@index([companyId])
 }
 
 model Material {
   id             String           @id @default(cuid())
+  companyId      String
+  company        Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   designation    String
-  reference      String           @unique
+  reference      String
   category       MaterialCategory
   unit           String           @default("u")
   unitPrice      Float            @default(0)
@@ -464,6 +533,9 @@ model Material {
   supplyRequests SupplyRequest[]
   orderItems     PurchaseOrderItem[]
   movements      StockMovement[]
+
+  @@unique([companyId, reference])
+  @@index([companyId])
 }
 
 model SupplyRequest {
@@ -486,7 +558,9 @@ model SupplyRequest {
 
 model PurchaseOrder {
   id         String      @id @default(cuid())
-  reference  String      @unique
+  companyId  String
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  reference  String
   supplierId String
   supplier   Supplier    @relation(fields: [supplierId], references: [id])
   projectId  String?
@@ -497,6 +571,9 @@ model PurchaseOrder {
   createdAt  DateTime    @default(now())
 
   items PurchaseOrderItem[]
+
+  @@unique([companyId, reference])
+  @@index([companyId])
 }
 
 model PurchaseOrderItem {
@@ -511,6 +588,8 @@ model PurchaseOrderItem {
 
 model StockMovement {
   id         String       @id @default(cuid())
+  companyId  String
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
   materialId String
   material   Material     @relation(fields: [materialId], references: [id], onDelete: Cascade)
   projectId  String?
@@ -521,5 +600,6 @@ model StockMovement {
   note       String?
   date       DateTime     @default(now())
 
+  @@index([companyId])
   @@index([materialId])
 }

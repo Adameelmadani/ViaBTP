@@ -1,19 +1,25 @@
 import { useEffect, useState } from "react";
-import { Warehouse, Plus, ArrowRight, Calendar } from "lucide-react";
+import { Warehouse, Plus, ArrowRight, Calendar, Ban } from "lucide-react";
 import api from "../api/client.js";
 import { PageHeader, Card, Spinner, Modal, Field, Input, Select, Textarea, EmptyState, Badge } from "../components/ui.jsx";
 import ProjectPicker from "../components/ProjectPicker.jsx";
 import { useProjects } from "../lib/hooks.js";
 import { SUPPLY_STATUS, PRIORITY, fmtNum, enumToOptions } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
-import { useAuth } from "../context/AuthContext.jsx";
+import { useConfirm } from "../context/ConfirmContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 const FLOW = ["BROUILLON", "EN_ATTENTE", "VALIDEE", "COMMANDEE", "LIVREE", "CLOTUREE"];
+// Une demande ne peut être rejetée que tant qu'elle n'est pas encore commandée.
+const REJECTABLE = ["BROUILLON", "EN_ATTENTE", "VALIDEE"];
 
 export default function Supply() {
   const { toast } = useToast();
-  const { hasRole } = useAuth();
+  const confirm = useConfirm();
+  const { projectCan } = useAccess();
   const { projects, projectId, setProjectId } = useProjects();
+  const project = projects.find((p) => p.id === projectId);
+  const canCreate = projectCan(project, "supply", "CONTRIBUTE");
   const [requests, setRequests] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [status, setStatus] = useState("");
@@ -27,13 +33,22 @@ export default function Supply() {
   useEffect(() => { if (projectId) load(); }, [projectId, status]);
   useEffect(() => { api.get("/materials").then((r) => setMaterials(r.data)); }, []);
 
-  const canValidate = hasRole("CONDUCTEUR_TRAVAUX", "MAITRE_OUVRAGE", "ENTREPRISE");
+  const canValidate = projectCan(project, "supply", "MANAGE");
   const advance = async (req) => {
     const idx = FLOW.indexOf(req.status);
     const next = FLOW[idx + 1];
     if (!next) return;
     await api.patch(`/supply/${req.id}/status`, { status: next });
     load(); toast(`Demande : ${SUPPLY_STATUS[next].label}`);
+  };
+  const reject = async (req) => {
+    if (!(await confirm({
+      title: "Rejeter la demande",
+      message: `Rejeter la demande de « ${req.material?.designation} » ?`,
+      confirmLabel: "Rejeter",
+    }))) return;
+    await api.patch(`/supply/${req.id}/status`, { status: "REJETEE" });
+    load(); toast("Demande rejetée");
   };
 
   return (
@@ -42,7 +57,7 @@ export default function Supply() {
         title="Demandes d'approvisionnement" subtitle="Workflow de validation des besoins chantier" icon={Warehouse}
         actions={<div className="flex gap-2 flex-wrap">
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
-          <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouvelle demande</button>
+          {canCreate && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouvelle demande</button>}
         </div>}
       />
 
@@ -68,8 +83,11 @@ export default function Supply() {
               <Badge className={PRIORITY[r.urgency].color}>{PRIORITY[r.urgency].label}</Badge>
               {r.desiredDate && <span className="flex items-center gap-1 text-xs text-brand-700/60"><Calendar size={13} /> {new Date(r.desiredDate).toLocaleDateString("fr-FR")}</span>}
               <Badge className={SUPPLY_STATUS[r.status].color}>{SUPPLY_STATUS[r.status].label}</Badge>
-              {canValidate && FLOW.indexOf(r.status) < FLOW.length - 1 && (
+              {canValidate && FLOW.indexOf(r.status) >= 0 && FLOW.indexOf(r.status) < FLOW.length - 1 && (
                 <button className="btn-soft btn-sm" onClick={() => advance(r)}>{SUPPLY_STATUS[FLOW[FLOW.indexOf(r.status) + 1]].label} <ArrowRight size={13} /></button>
+              )}
+              {canValidate && REJECTABLE.includes(r.status) && (
+                <button className="btn-danger btn-sm" onClick={() => reject(r)}><Ban size={13} /> Rejeter</button>
               )}
             </Card>
           ))}

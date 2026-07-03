@@ -5,10 +5,13 @@ import { PageHeader, Card, Spinner, Modal, Field, Input, Select, EmptyState, Bad
 import { ORDER_STATUS, fmtMAD, fmtNum } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { useConfirm } from "../context/ConfirmContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Orders() {
   const { toast } = useToast();
   const confirm = useConfirm();
+  const { canCompany } = useAccess();
+  const canOrder = canCompany("orders", "CONTRIBUTE");
   const [orders, setOrders] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [materials, setMaterials] = useState([]);
@@ -39,7 +42,7 @@ export default function Orders() {
     <div>
       <PageHeader
         title="Bons de commande" subtitle="Achats fournisseurs & réception" icon={ShoppingCart}
-        actions={<button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouveau bon</button>}
+        actions={canOrder && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouveau bon</button>}
       />
 
       {!orders ? <Spinner /> : orders.length === 0 ? (
@@ -85,7 +88,7 @@ export default function Orders() {
                 <tfoot><tr className="border-t border-brand-100"><td colSpan={3} className="p-3 text-right font-semibold text-brand-700">Total</td><td className="p-3 text-right font-bold text-brand-900">{fmtMAD(detail.total)}</td></tr></tfoot>
               </table>
             </Card>
-            {detail.status !== "LIVREE" && (
+            {detail.status !== "LIVREE" && canOrder && (
               <button className="btn-primary w-full" onClick={() => receive(detail)}><PackageCheck size={18} /> Réceptionner (entrée en stock)</button>
             )}
           </div>

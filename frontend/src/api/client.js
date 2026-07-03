@@ -4,10 +4,14 @@ const api = axios.create({
   baseURL: "/api",
 });
 
-// Joindre le token JWT à chaque requête
+export const COMPANY_KEY = "viabtp_company";
+
+// Joindre le token JWT + l'entreprise active à chaque requête
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("viabtp_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
+  const companyId = localStorage.getItem(COMPANY_KEY);
+  if (companyId) config.headers["X-Company-Id"] = companyId;
   return config;
 });
 

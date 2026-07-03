@@ -7,9 +7,11 @@ import ProjectPicker from "../components/ProjectPicker.jsx";
 import { useProjects } from "../lib/hooks.js";
 import { LOT_CATEGORIES } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Progress() {
   const { toast } = useToast();
+  const { projectCan } = useAccess();
   const { projects, projectId, setProjectId } = useProjects();
   const [lots, setLots] = useState(null);
   const [progressModal, setProgressModal] = useState(null);
@@ -74,7 +76,7 @@ export default function Progress() {
                       </div>
                       <div className="flex items-center gap-2">
                         <button className="btn-ghost btn-sm" onClick={() => openHistory(lot)}><History size={14} /> Historique</button>
-                        <button className="btn-primary btn-sm" onClick={() => setProgressModal(lot)}><TrendingUp size={14} /> Mettre à jour</button>
+                        {projectCan(project, "lots", "CONTRIBUTE") && <button className="btn-primary btn-sm" onClick={() => setProgressModal(lot)}><TrendingUp size={14} /> Mettre à jour</button>}
                       </div>
                     </div>
                     <div className="grid sm:grid-cols-2 gap-4 mt-3">

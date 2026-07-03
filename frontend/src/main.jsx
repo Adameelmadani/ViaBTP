@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import App from "./App.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
+import { CompanyProvider } from "./context/CompanyContext.jsx";
 import { ToastProvider } from "./context/ToastContext.jsx";
 import { ConfirmProvider } from "./context/ConfirmContext.jsx";
 import "./index.css";
@@ -13,7 +14,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <ToastProvider>
         <ConfirmProvider>
           <AuthProvider>
-            <App />
+            <CompanyProvider>
+              <App />
+            </CompanyProvider>
           </AuthProvider>
         </ConfirmProvider>
       </ToastProvider>

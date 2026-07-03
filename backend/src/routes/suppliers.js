@@ -1,15 +1,17 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity } from "../lib/helpers.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireCompanyLevel } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
 router.get(
   "/",
+  requireCompanyLevel("suppliers", "VIEW"),
   asyncHandler(async (req, res) => {
     const suppliers = await prisma.supplier.findMany({
+      where: { companyId: req.company.id },
       orderBy: { name: "asc" },
       include: { _count: { select: { materials: true, orders: true } } },
     });
@@ -19,9 +21,10 @@ router.get(
 
 router.get(
   "/:id",
+  requireCompanyLevel("suppliers", "VIEW"),
   asyncHandler(async (req, res) => {
-    const supplier = await prisma.supplier.findUnique({
-      where: { id: req.params.id },
+    const supplier = await prisma.supplier.findFirst({
+      where: { id: req.params.id, companyId: req.company.id },
       include: { materials: true, orders: { orderBy: { date: "desc" }, take: 10 } },
     });
     if (!supplier) return res.status(404).json({ message: "Fournisseur introuvable" });
@@ -31,10 +34,12 @@ router.get(
 
 router.post(
   "/",
+  requireCompanyLevel("suppliers", "CONTRIBUTE"),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const supplier = await prisma.supplier.create({
       data: {
+        companyId: req.company.id,
         name: b.name, contactName: b.contactName, email: b.email, phone: b.phone, address: b.address,
         ratingDelay: Number(b.ratingDelay) || 0,
         ratingQuality: Number(b.ratingQuality) || 0,
@@ -48,7 +53,10 @@ router.post(
 
 router.put(
   "/:id",
+  requireCompanyLevel("suppliers", "CONTRIBUTE"),
   asyncHandler(async (req, res) => {
+    const existing = await prisma.supplier.findFirst({ where: { id: req.params.id, companyId: req.company.id }, select: { id: true } });
+    if (!existing) return res.status(404).json({ message: "Fournisseur introuvable" });
     const b = req.body;
     const data = { name: b.name, contactName: b.contactName, email: b.email, phone: b.phone, address: b.address };
     if (b.ratingDelay != null) data.ratingDelay = Number(b.ratingDelay);
@@ -62,7 +70,10 @@ router.put(
 
 router.delete(
   "/:id",
+  requireCompanyLevel("suppliers", "MANAGE"),
   asyncHandler(async (req, res) => {
+    const existing = await prisma.supplier.findFirst({ where: { id: req.params.id, companyId: req.company.id }, select: { id: true } });
+    if (!existing) return res.status(404).json({ message: "Fournisseur introuvable" });
     await prisma.supplier.delete({ where: { id: req.params.id } });
     res.json({ message: "Fournisseur supprimé" });
   })

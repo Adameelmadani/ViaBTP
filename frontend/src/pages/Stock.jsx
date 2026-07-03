@@ -4,9 +4,12 @@ import api from "../api/client.js";
 import { PageHeader, Card, StatCard, Spinner, Modal, Field, Input, Select, Textarea, EmptyState, Badge } from "../components/ui.jsx";
 import { fmtMAD, fmtNum } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Stock() {
   const { toast } = useToast();
+  const { canCompany } = useAccess();
+  const canMove = canCompany("stock", "CONTRIBUTE");
   const [movements, setMovements] = useState(null);
   const [materials, setMaterials] = useState([]);
   const [projects, setProjects] = useState([]);
@@ -27,7 +30,7 @@ export default function Stock() {
     <div className="space-y-5">
       <PageHeader
         title="Stock & mouvements" subtitle="Entrées / sorties, inventaire & valorisation" icon={Boxes}
-        actions={<button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Mouvement</button>}
+        actions={canMove && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Mouvement</button>}
       />
 
       {valuation && (

@@ -1,17 +1,19 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
-import { asyncHandler, logActivity, notify } from "../lib/helpers.js";
-import { authenticate, authorize } from "../middleware/auth.js";
+import { asyncHandler, logActivity } from "../lib/helpers.js";
+import { authenticate, tenantContext, requireProjectLevel, scopeProjectQuery } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
+
+const financeProject = async (id) => (await prisma.financeRecord.findUnique({ where: { id }, select: { projectId: true } }))?.projectId;
 
 router.get(
   "/",
+  scopeProjectQuery,
   asyncHandler(async (req, res) => {
-    const { projectId, type, status } = req.query;
-    const where = {};
-    if (projectId) where.projectId = projectId;
+    const { type, status } = req.query;
+    const where = { ...req.projectScope };
     if (type) where.type = type;
     if (status) where.status = status;
     const records = await prisma.financeRecord.findMany({
@@ -26,6 +28,7 @@ router.get(
 // Synthèse budgétaire d'un projet
 router.get(
   "/summary/:projectId",
+  requireProjectLevel("finance", "VIEW", (req) => req.params.projectId),
   asyncHandler(async (req, res) => {
     const project = await prisma.project.findUnique({ where: { id: req.params.projectId } });
     const records = await prisma.financeRecord.findMany({ where: { projectId: req.params.projectId } });
@@ -45,7 +48,7 @@ router.get(
 
 router.post(
   "/",
-  authorize("MAITRE_OUVRAGE", "CONDUCTEUR_TRAVAUX", "ENTREPRISE", "BUREAU_ETUDES"),
+  requireProjectLevel("finance", "CONTRIBUTE", (req) => req.body.projectId),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const record = await prisma.financeRecord.create({
@@ -67,7 +70,7 @@ router.post(
 
 router.put(
   "/:id",
-  authorize("MAITRE_OUVRAGE", "CONDUCTEUR_TRAVAUX", "ENTREPRISE", "BUREAU_ETUDES"),
+  requireProjectLevel("finance", "CONTRIBUTE", (req) => financeProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const data = { number: b.number, type: b.type, status: b.status, note: b.note };
@@ -83,7 +86,7 @@ router.put(
 
 router.delete(
   "/:id",
-  authorize("MAITRE_OUVRAGE", "CONDUCTEUR_TRAVAUX"),
+  requireProjectLevel("finance", "MANAGE", (req) => financeProject(req.params.id)),
   asyncHandler(async (req, res) => {
     await prisma.financeRecord.delete({ where: { id: req.params.id } });
     res.json({ message: "Situation supprimée" });

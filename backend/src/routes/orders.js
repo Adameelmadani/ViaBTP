@@ -1,10 +1,10 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity } from "../lib/helpers.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireCompanyLevel } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
 const include = {
   supplier: { select: { id: true, name: true } },
@@ -12,12 +12,12 @@ const include = {
   items: { include: { material: { select: { id: true, designation: true, unit: true } } } },
 };
 
-// Bons de commande (4.11.4)
 router.get(
   "/",
+  requireCompanyLevel("orders", "VIEW"),
   asyncHandler(async (req, res) => {
     const { supplierId, projectId, status } = req.query;
-    const where = {};
+    const where = { companyId: req.company.id };
     if (supplierId) where.supplierId = supplierId;
     if (projectId) where.projectId = projectId;
     if (status) where.status = status;
@@ -28,8 +28,9 @@ router.get(
 
 router.get(
   "/:id",
+  requireCompanyLevel("orders", "VIEW"),
   asyncHandler(async (req, res) => {
-    const order = await prisma.purchaseOrder.findUnique({ where: { id: req.params.id }, include });
+    const order = await prisma.purchaseOrder.findFirst({ where: { id: req.params.id, companyId: req.company.id }, include });
     if (!order) return res.status(404).json({ message: "Bon de commande introuvable" });
     res.json(order);
   })
@@ -37,14 +38,16 @@ router.get(
 
 router.post(
   "/",
+  requireCompanyLevel("orders", "CONTRIBUTE"),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const items = b.items || [];
     const total = items.reduce((s, it) => s + Number(it.quantity) * Number(it.unitPrice), 0);
-    const count = await prisma.purchaseOrder.count();
+    const count = await prisma.purchaseOrder.count({ where: { companyId: req.company.id } });
     const reference = b.reference || `BC-${new Date().getFullYear()}-${String(count + 1).padStart(4, "0")}`;
     const order = await prisma.purchaseOrder.create({
       data: {
+        companyId: req.company.id,
         reference,
         supplierId: b.supplierId,
         projectId: b.projectId || null,
@@ -60,10 +63,13 @@ router.post(
   })
 );
 
-// Réception => statut LIVREE + entrée en stock (4.11.5/4.11.6)
+// Réception => statut LIVREE + entrée en stock
 router.patch(
   "/:id/status",
+  requireCompanyLevel("orders", "CONTRIBUTE"),
   asyncHandler(async (req, res) => {
+    const target = await prisma.purchaseOrder.findFirst({ where: { id: req.params.id, companyId: req.company.id }, select: { id: true } });
+    if (!target) return res.status(404).json({ message: "Bon de commande introuvable" });
     const { status } = req.body;
     const order = await prisma.purchaseOrder.update({
       where: { id: req.params.id },
@@ -78,6 +84,7 @@ router.patch(
         });
         await prisma.stockMovement.create({
           data: {
+            companyId: req.company.id,
             materialId: item.materialId,
             projectId: order.projectId,
             type: "ENTREE",
@@ -95,7 +102,10 @@ router.patch(
 
 router.delete(
   "/:id",
+  requireCompanyLevel("orders", "MANAGE"),
   asyncHandler(async (req, res) => {
+    const target = await prisma.purchaseOrder.findFirst({ where: { id: req.params.id, companyId: req.company.id }, select: { id: true } });
+    if (!target) return res.status(404).json({ message: "Bon de commande introuvable" });
     await prisma.purchaseOrder.delete({ where: { id: req.params.id } });
     res.json({ message: "Bon de commande supprimé" });
   })

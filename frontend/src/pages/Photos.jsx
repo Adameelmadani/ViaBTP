@@ -6,10 +6,14 @@ import ProjectPicker from "../components/ProjectPicker.jsx";
 import { useProjects } from "../lib/hooks.js";
 import { resizeImage, MAX_UPLOAD_MB } from "../lib/image.js";
 import { useToast } from "../context/ToastContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Photos() {
   const { toast } = useToast();
+  const { projectCan } = useAccess();
   const { projects, projectId, setProjectId } = useProjects();
+  const project = projects.find((p) => p.id === projectId);
+  const canAdd = projectCan(project, "photos", "CONTRIBUTE");
   const [photos, setPhotos] = useState(null);
   const [zone, setZone] = useState("");
   const [open, setOpen] = useState(false);
@@ -30,7 +34,7 @@ export default function Photos() {
         title="Photos & géolocalisation" subtitle="Suivi photographique horodaté et géolocalisé" icon={Camera}
         actions={<div className="flex gap-2 flex-wrap">
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
-          <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Ajouter</button>
+          {canAdd && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Ajouter</button>}
         </div>}
       />
 

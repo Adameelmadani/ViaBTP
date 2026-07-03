@@ -4,6 +4,7 @@ import api from "../api/client.js";
 import { PageHeader, Card, Spinner, Modal, Field, Input, EmptyState, Badge } from "../components/ui.jsx";
 import { useToast } from "../context/ToastContext.jsx";
 import { useConfirm } from "../context/ConfirmContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 function Stars({ value }) {
   return (
@@ -19,6 +20,9 @@ function Stars({ value }) {
 export default function Suppliers() {
   const { toast } = useToast();
   const confirm = useConfirm();
+  const { canCompany } = useAccess();
+  const canEditSup = canCompany("suppliers", "CONTRIBUTE");
+  const canDelSup = canCompany("suppliers", "MANAGE");
   const [suppliers, setSuppliers] = useState(null);
   const [edit, setEdit] = useState(null);
   const [open, setOpen] = useState(false);
@@ -31,7 +35,7 @@ export default function Suppliers() {
     <div>
       <PageHeader
         title="Fournisseurs" subtitle="Base fournisseurs & évaluation (délai / qualité / prix)" icon={Truck}
-        actions={<button className="btn-primary" onClick={() => { setEdit(null); setOpen(true); }}><Plus size={18} /> Nouveau fournisseur</button>}
+        actions={canEditSup && <button className="btn-primary" onClick={() => { setEdit(null); setOpen(true); }}><Plus size={18} /> Nouveau fournisseur</button>}
       />
 
       {!suppliers ? <Spinner /> : suppliers.length === 0 ? (
@@ -60,10 +64,12 @@ export default function Suppliers() {
                 <span className="flex items-center gap-1"><Package size={13} /> {s._count?.materials || 0} matériaux</span>
                 <span className="flex items-center gap-1"><ShoppingCart size={13} /> {s._count?.orders || 0} commandes</span>
               </div>
-              <div className="flex gap-1.5 pt-3 border-t border-brand-100/60">
-                <button className="btn-ghost btn-sm flex-1" onClick={() => { setEdit(s); setOpen(true); }}><Pencil size={13} /> Modifier</button>
-                <button className="btn-danger btn-sm" onClick={() => remove(s)}><Trash2 size={13} /></button>
-              </div>
+              {(canEditSup || canDelSup) && (
+                <div className="flex gap-1.5 pt-3 border-t border-brand-100/60">
+                  {canEditSup && <button className="btn-ghost btn-sm flex-1" onClick={() => { setEdit(s); setOpen(true); }}><Pencil size={13} /> Modifier</button>}
+                  {canDelSup && <button className="btn-danger btn-sm" onClick={() => remove(s)}><Trash2 size={13} /></button>}
+                </div>
+              )}
             </Card>
           ))}
         </div>

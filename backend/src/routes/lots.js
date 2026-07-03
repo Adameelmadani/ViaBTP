@@ -1,16 +1,19 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity, recomputeProjectProgress } from "../lib/helpers.js";
-import { authenticate, authorize } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireProjectLevel } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
-const editors = ["CONDUCTEUR_TRAVAUX", "CHEF_CHANTIER", "ENTREPRISE", "BUREAU_ETUDES"];
+const lotProject = async (id) => (await prisma.lot.findUnique({ where: { id }, select: { projectId: true } }))?.projectId;
+const updateProject = async (updateId) =>
+  (await prisma.progressUpdate.findUnique({ where: { id: updateId }, select: { lot: { select: { projectId: true } } } }))?.lot?.projectId;
 
 // Lots d'un projet
 router.get(
   "/project/:projectId",
+  requireProjectLevel("lots", "VIEW", (req) => req.params.projectId),
   asyncHandler(async (req, res) => {
     const lots = await prisma.lot.findMany({
       where: { projectId: req.params.projectId },
@@ -25,7 +28,7 @@ router.get(
 
 router.post(
   "/",
-  authorize(...editors),
+  requireProjectLevel("lots", "MANAGE", (req) => req.body.projectId),
   asyncHandler(async (req, res) => {
     const { projectId, name, category, weight, plannedProgress, amount } = req.body;
     const lot = await prisma.lot.create({
@@ -44,7 +47,7 @@ router.post(
 
 router.put(
   "/:id",
-  authorize(...editors),
+  requireProjectLevel("lots", "MANAGE", (req) => lotProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const { name, category, weight, plannedProgress, actualProgress, amount } = req.body;
     const data = { name, category };
@@ -61,7 +64,7 @@ router.put(
 
 router.delete(
   "/:id",
-  authorize(...editors),
+  requireProjectLevel("lots", "MANAGE", (req) => lotProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const lot = await prisma.lot.delete({ where: { id: req.params.id } });
     await recomputeProjectProgress(lot.projectId);
@@ -72,6 +75,7 @@ router.delete(
 // ── Mises à jour d'avancement (saisie quotidienne) ──
 router.post(
   "/:id/progress",
+  requireProjectLevel("lots", "CONTRIBUTE", (req) => lotProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const { percentage, quantityExecuted, note } = req.body;
     const lot = await prisma.lot.findUnique({ where: { id: req.params.id } });
@@ -97,7 +101,7 @@ router.post(
 // Validation hiérarchique d'une mise à jour
 router.patch(
   "/progress/:updateId/validate",
-  authorize("CONDUCTEUR_TRAVAUX", "BUREAU_ETUDES", "CONTROLE_TECHNIQUE"),
+  requireProjectLevel("lots", "MANAGE", (req) => updateProject(req.params.updateId)),
   asyncHandler(async (req, res) => {
     const update = await prisma.progressUpdate.update({
       where: { id: req.params.updateId },
@@ -109,6 +113,7 @@ router.patch(
 
 router.get(
   "/:id/history",
+  requireProjectLevel("lots", "VIEW", (req) => lotProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const updates = await prisma.progressUpdate.findMany({
       where: { lotId: req.params.id },

@@ -1,16 +1,17 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity } from "../lib/helpers.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireCompanyLevel } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
 router.get(
   "/",
+  requireCompanyLevel("materials", "VIEW"),
   asyncHandler(async (req, res) => {
     const { category, q, lowStock } = req.query;
-    const where = {};
+    const where = { companyId: req.company.id };
     if (category) where.category = category;
     if (q) where.OR = [
       { designation: { contains: q, mode: "insensitive" } },
@@ -28,9 +29,10 @@ router.get(
 
 router.get(
   "/:id",
+  requireCompanyLevel("materials", "VIEW"),
   asyncHandler(async (req, res) => {
-    const material = await prisma.material.findUnique({
-      where: { id: req.params.id },
+    const material = await prisma.material.findFirst({
+      where: { id: req.params.id, companyId: req.company.id },
       include: {
         supplier: true,
         movements: { orderBy: { date: "desc" }, take: 20, include: { project: { select: { name: true } } } },
@@ -43,10 +45,12 @@ router.get(
 
 router.post(
   "/",
+  requireCompanyLevel("materials", "CONTRIBUTE"),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const material = await prisma.material.create({
       data: {
+        companyId: req.company.id,
         designation: b.designation,
         reference: b.reference,
         category: b.category,
@@ -66,7 +70,10 @@ router.post(
 
 router.put(
   "/:id",
+  requireCompanyLevel("materials", "CONTRIBUTE"),
   asyncHandler(async (req, res) => {
+    const existing = await prisma.material.findFirst({ where: { id: req.params.id, companyId: req.company.id }, select: { id: true } });
+    if (!existing) return res.status(404).json({ message: "Matériau introuvable" });
     const b = req.body;
     const data = {
       designation: b.designation, reference: b.reference, category: b.category,
@@ -83,7 +90,10 @@ router.put(
 
 router.delete(
   "/:id",
+  requireCompanyLevel("materials", "MANAGE"),
   asyncHandler(async (req, res) => {
+    const existing = await prisma.material.findFirst({ where: { id: req.params.id, companyId: req.company.id }, select: { id: true } });
+    if (!existing) return res.status(404).json({ message: "Matériau introuvable" });
     await prisma.material.delete({ where: { id: req.params.id } });
     res.json({ message: "Matériau supprimé" });
   })

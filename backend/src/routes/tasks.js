@@ -1,16 +1,17 @@
 import { Router } from "express";
 import prisma from "../lib/prisma.js";
 import { asyncHandler, logActivity } from "../lib/helpers.js";
-import { authenticate } from "../middleware/auth.js";
+import { authenticate, tenantContext, requireProjectLevel } from "../middleware/auth.js";
 
 const router = Router();
-router.use(authenticate);
+router.use(authenticate, tenantContext);
 
 const userSel = { select: { id: true, firstName: true, lastName: true } };
+const taskProject = async (id) => (await prisma.task.findUnique({ where: { id }, select: { projectId: true } }))?.projectId;
 
-// Tâches de planning (Gantt) d'un projet
 router.get(
   "/project/:projectId",
+  requireProjectLevel("planning", "VIEW", (req) => req.params.projectId),
   asyncHandler(async (req, res) => {
     const tasks = await prisma.task.findMany({
       where: { projectId: req.params.projectId },
@@ -23,6 +24,7 @@ router.get(
 
 router.post(
   "/",
+  requireProjectLevel("planning", "CONTRIBUTE", (req) => req.body.projectId),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const task = await prisma.task.create({
@@ -47,6 +49,7 @@ router.post(
 
 router.put(
   "/:id",
+  requireProjectLevel("planning", "CONTRIBUTE", (req) => taskProject(req.params.id)),
   asyncHandler(async (req, res) => {
     const b = req.body;
     const data = {
@@ -64,6 +67,7 @@ router.put(
 
 router.delete(
   "/:id",
+  requireProjectLevel("planning", "MANAGE", (req) => taskProject(req.params.id)),
   asyncHandler(async (req, res) => {
     await prisma.task.delete({ where: { id: req.params.id } });
     res.json({ message: "Tâche supprimée" });

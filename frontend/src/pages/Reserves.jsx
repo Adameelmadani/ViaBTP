@@ -6,12 +6,16 @@ import ProjectPicker from "../components/ProjectPicker.jsx";
 import { useProjects } from "../lib/hooks.js";
 import { RESERVE_STATUS, PRIORITY, ROLE_LABELS, enumToOptions } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 const COLUMNS = ["OUVERTE", "EN_COURS", "TRAITEE", "VALIDEE"];
 
 export default function Reserves() {
   const { toast } = useToast();
+  const { projectCan } = useAccess();
   const { projects, projectId, setProjectId } = useProjects();
+  const project = projects.find((p) => p.id === projectId);
+  const canCreate = projectCan(project, "reserves", "CONTRIBUTE");
   const [reserves, setReserves] = useState(null);
   const [users, setUsers] = useState([]);
   const [open, setOpen] = useState(false);
@@ -35,7 +39,7 @@ export default function Reserves() {
         title="Réserves & non-conformités" subtitle="Suivi et levée des réserves" icon={AlertTriangle}
         actions={<div className="flex gap-2">
           <ProjectPicker projects={projects} value={projectId} onChange={setProjectId} />
-          <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouvelle réserve</button>
+          {canCreate && <button className="btn-primary" onClick={() => setOpen(true)}><Plus size={18} /> Nouvelle réserve</button>}
         </div>}
       />
 
@@ -69,7 +73,7 @@ export default function Reserves() {
       )}
 
       <ReserveModal open={open} onClose={() => setOpen(false)} projectId={projectId} users={users} onSaved={() => { setOpen(false); load(); toast("Réserve créée"); }} />
-      <ReserveDetail reserve={detail} onClose={() => setDetail(null)} onChangeStatus={changeStatus} />
+      <ReserveDetail reserve={detail} canEdit={canCreate} onClose={() => setDetail(null)} onChangeStatus={changeStatus} />
     </div>
   );
 }
@@ -107,7 +111,7 @@ function ReserveModal({ open, onClose, projectId, users, onSaved }) {
   );
 }
 
-function ReserveDetail({ reserve, onClose, onChangeStatus }) {
+function ReserveDetail({ reserve, canEdit, onClose, onChangeStatus }) {
   if (!reserve) return null;
   return (
     <Modal open={!!reserve} onClose={onClose} title={reserve.title}>
@@ -123,17 +127,19 @@ function ReserveDetail({ reserve, onClose, onChangeStatus }) {
           <div className="bg-white/50 rounded-xl p-3 border border-white/60"><p className="text-xs text-brand-700/60">Créée par</p><p className="font-medium">{reserve.createdBy?.firstName} {reserve.createdBy?.lastName}</p></div>
           <div className="bg-white/50 rounded-xl p-3 border border-white/60"><p className="text-xs text-brand-700/60">Date</p><p className="font-medium">{new Date(reserve.createdAt).toLocaleDateString("fr-FR")}</p></div>
         </div>
-        <div>
-          <p className="label">Faire évoluer le statut</p>
-          <div className="flex flex-wrap gap-2">
-            {Object.entries(RESERVE_STATUS).map(([k, v]) => (
-              <button key={k} onClick={() => onChangeStatus(reserve, k)} disabled={k === reserve.status}
-                className={`badge ${v.color} ${k === reserve.status ? "ring-2 ring-brand-400" : "hover:opacity-80"} disabled:opacity-100`}>
-                {v.label}
-              </button>
-            ))}
+        {canEdit && (
+          <div>
+            <p className="label">Faire évoluer le statut</p>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(RESERVE_STATUS).map(([k, v]) => (
+                <button key={k} onClick={() => onChangeStatus(reserve, k)} disabled={k === reserve.status}
+                  className={`badge ${v.color} ${k === reserve.status ? "ring-2 ring-brand-400" : "hover:opacity-80"} disabled:opacity-100`}>
+                  {v.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </Modal>
   );

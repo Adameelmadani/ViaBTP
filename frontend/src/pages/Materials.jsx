@@ -5,10 +5,14 @@ import { PageHeader, Card, StatCard, Spinner, Modal, Field, Input, Select, Empty
 import { MATERIAL_CATEGORIES, fmtMAD, fmtNum, enumToOptions } from "../lib/constants.js";
 import { useToast } from "../context/ToastContext.jsx";
 import { useConfirm } from "../context/ConfirmContext.jsx";
+import { useAccess } from "../lib/permissions.js";
 
 export default function Materials() {
   const { toast } = useToast();
   const confirm = useConfirm();
+  const { canCompany } = useAccess();
+  const canEditMat = canCompany("materials", "CONTRIBUTE");
+  const canDelMat = canCompany("materials", "MANAGE");
   const [materials, setMaterials] = useState(null);
   const [suppliers, setSuppliers] = useState([]);
   const [valuation, setValuation] = useState(null);
@@ -41,7 +45,7 @@ export default function Materials() {
     <div className="space-y-5">
       <PageHeader
         title="Articles & matériaux" subtitle="Catalogue, stocks et seuils d'alerte" icon={Package}
-        actions={<button className="btn-primary" onClick={() => { setEdit(null); setOpen(true); }}><Plus size={18} /> Nouveau matériau</button>}
+        actions={canEditMat && <button className="btn-primary" onClick={() => { setEdit(null); setOpen(true); }}><Plus size={18} /> Nouveau matériau</button>}
       />
 
       {valuation && (
@@ -91,10 +95,12 @@ export default function Materials() {
                 </div>
                 {m.storageZone && <p className="flex items-center gap-1 text-xs text-brand-700/60 mt-2"><MapPin size={11} /> {m.storageZone}</p>}
                 {low && <Badge className="bg-red-100 text-red-700 mt-2"><AlertTriangle size={11} /> Réapprovisionnement requis</Badge>}
-                <div className="flex gap-1.5 mt-3 pt-3 border-t border-brand-100/60">
-                  <button className="btn-ghost btn-sm flex-1" onClick={() => { setEdit(m); setOpen(true); }}><Pencil size={13} /> Modifier</button>
-                  <button className="btn-danger btn-sm" onClick={() => remove(m)}><Trash2 size={13} /></button>
-                </div>
+                {(canEditMat || canDelMat) && (
+                  <div className="flex gap-1.5 mt-3 pt-3 border-t border-brand-100/60">
+                    {canEditMat && <button className="btn-ghost btn-sm flex-1" onClick={() => { setEdit(m); setOpen(true); }}><Pencil size={13} /> Modifier</button>}
+                    {canDelMat && <button className="btn-danger btn-sm" onClick={() => remove(m)}><Trash2 size={13} /></button>}
+                  </div>
+                )}
               </Card>
             );
           })}
