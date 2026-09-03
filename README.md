@@ -1,5 +1,7 @@
 # ViaBTP: Plateforme de suivi de chantier de construction
 
+<img src="frontend/public/favicon.png" style="width: 100px;">
+
 Application web complète de pilotage de chantiers (BTP): suivi d'avancement, réserves, gestion
 documentaire, planning, réunions, finance et **gestion complète de l'approvisionnement
 en matériaux**.
@@ -8,6 +10,8 @@ en matériaux**.
 plusieurs entreprises, chacune avec ses propres projets, membres et droits.
 
 Interface **glassmorphism** thème **blanc, vert & orange**, multi-rôles.
+
+<img src="demo/demo.gif">
 
 ---
 

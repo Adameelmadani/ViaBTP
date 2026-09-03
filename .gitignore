@@ -7,4 +7,3 @@ build/
 backend/uploads/*
 !backend/uploads/.gitkeep
 npm-debug.log*
-.claude/
