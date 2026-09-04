@@ -184,12 +184,6 @@ ViaBTP/
 
 ---
 
-## Notes
-
-- Les uploads sont stockés dans `backend/uploads/` et servis sur `/uploads`.
-- Pour basculer sur un PostgreSQL non-Docker, ajustez `DATABASE_URL` dans `backend/.env`.
-- `npx prisma studio` ouvre un explorateur visuel de la base.
-
 ## Licence
 
 Ce projet est sous licence **MIT** - voir le fichier [LICENSE](LICENSE) pour plus de détails.
